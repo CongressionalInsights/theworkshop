@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-We are committed to a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We are committed to a harassment-free experience for everyone.
 
 ## Our Standards
 
@@ -13,14 +13,6 @@ Examples of behavior that contributes to a positive environment:
 - Giving and accepting constructive feedback
 - Focusing on what is best for the community
 - Showing empathy toward others
-
-Examples of unacceptable behavior:
-
-- Sexualized language or imagery, and unwelcome sexual attention or advances
-- Trolling, insulting/derogatory comments, and personal or political attacks
-- Public or private harassment
-- Publishing others' private information without explicit permission
-- Other conduct which could reasonably be considered inappropriate
 
 ## Enforcement Responsibilities
 
