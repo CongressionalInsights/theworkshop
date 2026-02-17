@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+def scripts_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def run(script: str, argv: list[str]) -> int:
+    path = scripts_dir() / script
+    if not path.exists():
+        print(f"Missing script: {path}", file=sys.stderr)
+        return 2
+    cmd = [sys.executable, str(path)] + argv
+    proc = subprocess.run(cmd)
+    return int(proc.returncode)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="theworkshop", description="TheWorkshop skill helper (Codex-run).")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("new", help="Create a new project root")
+    sub.add_parser("add-workstream", help="Add a workstream to a project")
+    sub.add_parser("add-job", help="Add a job to a workstream")
+    sub.add_parser("check", help="Validate plans + gates")
+    sub.add_parser("optimize", help="Generate optimization report")
+    sub.add_parser("reward-eval", help="Compute rewards + next actions (updates job plans)")
+    sub.add_parser("dashboard", help="Build dashboard artifacts")
+    sub.add_parser("open-dashboard", help="Open dashboard (best-effort, open-once)")
+    sub.add_parser("monitor", help="Open dashboard and keep it live (best-effort)")
+    sub.add_parser("task-tracker", help="Build/update task tracker CSV (1 row per job)")
+    sub.add_parser("sync", help="Sync plan tables (project/workstreams) from on-disk state")
+    sub.add_parser("rollup", help="Roll up statuses (job->workstream->project) + sync plan tables")
+    sub.add_parser("job-start", help="Start a job (status/timestamps/iteration + sync)")
+    sub.add_parser("job-complete", help="Complete a job (reward-gated) + sync")
+    sub.add_parser("workstream-complete", help="Complete a workstream (only if all jobs are done) + sync")
+    sub.add_parser("project-complete", help="Complete a project (only if all workstreams are done) + sync")
+    sub.add_parser("imagegen-job", help="Run image generation for a WI job (imagegen + apple-keychain)")
+    sub.add_parser("doctor", help="Preflight checks for one-pass reliability")
+    sub.add_parser("lessons-capture", help="Append a lesson and rebuild index")
+    sub.add_parser("lessons-query", help="Query lessons")
+    sub.add_parser("usage", help="Usage snapshot (tokens/time)")
+    sub.add_parser("github-sync", help="GitHub mirroring/sync (opt-in)")
+    sub.add_parser("truth-eval", help="Run truth evaluation hooks (placeholder)")
+    sub.add_parser("orchestrate", help="Build orchestration waves for runnable jobs")
+    sub.add_parser("invalidate-downstream", help="Invalidate stale done downstream jobs")
+    sub.add_parser("agent-log", help="Append an event to logs/agents.jsonl")
+
+    args, rest = parser.parse_known_args()
+    mapping = {
+        "new": "project_new.py",
+        "add-workstream": "workstream_add.py",
+        "add-job": "job_add.py",
+        "check": "plan_check.py",
+        "optimize": "optimize_plan.py",
+        "reward-eval": "reward_eval.py",
+        "dashboard": "dashboard_build.py",
+        "open-dashboard": "dashboard_open.py",
+        "monitor": "dashboard_monitor.py",
+        "task-tracker": "task_tracker_build.py",
+        "sync": "plan_sync.py",
+        "rollup": "plan_sync.py",
+        "job-start": "job_start.py",
+        "job-complete": "job_complete.py",
+        "workstream-complete": "workstream_complete.py",
+        "project-complete": "project_complete.py",
+        "imagegen-job": "imagegen_job.py",
+        "doctor": "doctor.py",
+        "lessons-capture": "lessons_capture.py",
+        "lessons-query": "lessons_query.py",
+        "usage": "usage_snapshot.py",
+        "github-sync": "github_sync.py",
+        "truth-eval": "truth_eval.py",
+        "orchestrate": "orchestrate_plan.py",
+        "invalidate-downstream": "invalidate_downstream.py",
+        "agent-log": "agent_log.py",
+    }
+    script = mapping[args.cmd]
+    return run(script, rest)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

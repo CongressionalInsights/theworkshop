@@ -1,0 +1,26 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Per-install / per-user state (do not commit)
+state/
+
+# Project roots created by the skill (keep the repo clean)
+PJ-*/
+
+# Local run artifacts from root-level smoke/synthetic runs
+outputs/
+tmp/
+logs/
+artifacts/
+notes/
+_test_runs/
+
+# Example project outputs
+examples/**/outputs/
+examples/**/notes/
+examples/**/logs/
+examples/**/artifacts/
+examples/**/tmp/

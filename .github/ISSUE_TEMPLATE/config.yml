@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage Questions
+    url: https://github.com/ashirgruder/theworkshop/discussions
+    about: Ask how-to questions in Discussions.
+  - name: Security Reports
+    url: https://github.com/ashirgruder/theworkshop/security/advisories
+    about: Report vulnerabilities privately.

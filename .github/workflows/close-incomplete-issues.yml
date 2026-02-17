@@ -1,0 +1,29 @@
+name: Close Incomplete Issues
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  stale-needs-repro:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-close inactive needs-repro issues
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-label: status:needs-repro
+          only-issue-labels: status:needs-repro
+          days-before-issue-stale: 14
+          days-before-issue-close: 7
+          stale-issue-message: >-
+            This issue is marked `status:needs-repro` and has not received reproducible
+            details within the policy window. It will be closed to keep triage lean.
+          close-issue-message: >-
+            Closing due to missing reproduction details. Reopen with exact repro steps,
+            expected/actual behavior, and relevant artifacts.
+          exempt-issue-labels: status:accepted
