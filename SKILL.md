@@ -1,11 +1,11 @@
 ---
 name: theworkshop
-description: "Project OS for non-coding work: optimized decomposition into Project->Workstreams->Jobs, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
+description: "Codex/Claude Code skill for non-coding work: optimized decomposition into Project->Workstreams->Jobs, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
 ---
 
 # TheWorkshop
 
-Use this skill to run **non-coding projects** in a structured, auditable, loopable way.
+Use this skill in **Codex and Claude Code** to run non-coding projects in a structured, auditable, loopable way.
 
 TheWorkshop is **operatorless**: the user does not run terminal commands. Codex executes scripts directly and only asks the user for **click-only** permissions when required (auth, keychain, etc.).
 

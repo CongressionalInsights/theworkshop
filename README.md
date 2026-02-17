@@ -3,13 +3,21 @@
 [![Latest Release](https://img.shields.io/github/v/release/CongressionalInsights/theworkshop?display_name=tag)](https://github.com/CongressionalInsights/theworkshop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-**TheWorkshop Open Source Edition** is a Project OS for non-coding work.
+**TheWorkshop Open Source Edition** is a **skill for Codex and Claude Code** that runs non-coding work in a structured, auditable way.
 
-It turns ambiguous requests into a living execution system:
+It turns ambiguous requests into a living execution workflow:
 
 **Project -> Workstreams -> Jobs**
 
 with explicit gates, orchestration, monitoring, lessons learned, and spend visibility.
+
+## Plain-English Definition
+
+When this repo says **\"project OS\"**, it means:
+
+- a repeatable workflow system for the agent
+- **not** an operating system
+- implemented as a skill the agent runs inside Codex/Claude Code
 
 ## Systems Architecture
 
@@ -19,6 +27,7 @@ The diagram below shows TheWorkshop's control plane (planning, gating, orchestra
 
 ## What It Is
 
+- A **Codex/Claude Code skill**, not a standalone app
 - A structured runtime for non-coding projects
 - Agreement-gated before execution starts
 - Truth-gated and reward-gated before completion claims
