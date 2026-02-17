@@ -1,6 +1,6 @@
 # TheWorkshop
 
-[![Latest Release](https://img.shields.io/github/v/release/ashirgruder/theworkshop?display_name=tag)](https://github.com/ashirgruder/theworkshop/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/CongressionalInsights/theworkshop?display_name=tag)](https://github.com/CongressionalInsights/theworkshop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 **TheWorkshop Open Source Edition** is a Project OS for non-coding work.
