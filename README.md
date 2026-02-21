@@ -63,13 +63,22 @@ A job can only transition to `done` when all gates pass:
 ## Install
 
 ```bash
-cp -R /path/to/theworkshop "$CODEX_HOME/skills/theworkshop"
+# One command from the repo root
+git clone https://github.com/CongressionalInsights/theworkshop.git
+mkdir -p "$CODEX_HOME/skills"
+cp -R theworkshop "$CODEX_HOME/skills/theworkshop"
 ```
 
 Typical destination:
 
 - `$CODEX_HOME/skills/theworkshop`
 - usually `~/.codex/skills/theworkshop`
+
+To update later:
+
+```bash
+cd "$CODEX_HOME/skills/theworkshop" && git pull origin main
+```
 
 ## Reproducible Quick Start
 
