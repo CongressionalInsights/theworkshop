@@ -57,3 +57,9 @@
 ### Documentation Refresh
 - Rewrote core docs and references for consistency with current behavior (gates, orchestration, monitoring, billing, and imagegen reliability).
 - Refreshed sample project artifacts to align examples with current control-plane expectations and plan structure.
+
+### Distribution and Installability
+- Added explicit installation and update instructions for open-source users in `README.md` and `SKILL.md`:
+  - clone from `https://github.com/CongressionalInsights/theworkshop.git`
+  - install under `$CODEX_HOME/skills/theworkshop`
+  - update via `git pull origin main`
