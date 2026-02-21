@@ -30,6 +30,16 @@
 - Added best-effort auto-open + open-once behavior (`scripts/dashboard_open.py`) and monitor/watcher loop (`scripts/dashboard_monitor.py`, `scripts/dashboard_watch.py`).
 - Improved refresh reliability by rebuilding dashboard artifacts on lifecycle transitions and key evaluation updates.
 
+### Loop Execution
+- Added first-class loop orchestration via `theworkshop loop` with `--mode {until_complete,max_iterations,promise_or_max}` and optional `--max-walltime-sec`.
+- Added optional planning-time loop configuration and loop decision capture in work plan frontmatter and project-level decisions log.
+- Added loop state fields (`loop_*`) to the work-item schema and persisted dashboard surfaces so UI shows enabled status, mode, attempts, and stop reason.
+- Added loop execution integration tests for success, cap-stop, non-zero codex exit, cancellation, timeout, and malformed promise.
+
+### PDF Truth Test Portability
+- Updated `scripts/truth_gate_pdf_test.py` to discover Chrome/Chromium via env overrides + PATH (`THEWORKSHOP_PDF_BROWSER` / `THEWORKSHOP_CHROME_PATH`) instead of hardcoding macOS app paths.
+- Added clear skip-path behavior for unsupported environments so CI/open-source users on non-mac systems can still run the suite.
+
 ### Billing / Spend Model
 - Added token-rate based spend estimation and project baseline/delta accounting.
 - Added billing-aware display semantics (`subscription_auth|metered_api|unknown`) with confidence/reason metadata.

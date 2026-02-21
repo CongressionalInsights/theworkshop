@@ -48,6 +48,26 @@ Verification should reference on-disk evidence:
 Completion promises must be objectively true and only emitted at the end:
 - `<promise>WI-20260214-001-DONE</promise>`
 
+## Looping planning prompt (before execution)
+
+Add a short planning decision step before execution:
+
+- "Should this job use loop mode?"
+- "Loop mode: `until_complete`, `max_iterations`, or `promise_or_max`?"
+- "Loop cap: use project default by stakes (`low=2`, `normal=3`, `high=5`, `critical=7`) or override with a specific integer?"
+- "Completion promise for loop stop when in promise-based mode: `<promise>{WI}-DONE</promise>`?"
+
+Capture decisions in project `# Decisions` with:
+- `loop_enabled: true/false`
+- `loop_mode: ...`
+- `loop_max_iterations: N`
+- `loop_target_promise: ...`
+
+Then run the execution command chosen for this WI:
+
+- `theworkshop loop --project <path> --work-item-id WI-...`
+- append `--mode`, `--max-loops`, `--completion-promise`, and `--max-walltime-sec` as needed
+
 ## Agreement gate language (recommended)
 
 Use a short confirmation question:
@@ -57,4 +77,3 @@ Then record:
 - `agreement_status: agreed`
 - `agreed_at: ...`
 - `agreed_notes: ...`
-

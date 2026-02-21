@@ -58,6 +58,15 @@ If you need complex content, put it in the Markdown body, not frontmatter.
 - `reward_last_score` (int)
 - `reward_last_eval_at` (string)
 - `reward_last_next_action` (string)
+- `loop_enabled` (bool)
+- `loop_mode` (string: `until_complete|max_iterations|promise_or_max`)
+- `loop_max_iterations` (int)
+- `loop_target_promise` (string)
+- `loop_status` (string: `active|stopped|completed|blocked|error`)
+- `loop_last_attempt` (int)
+- `loop_last_started_at` (string)
+- `loop_last_stopped_at` (string)
+- `loop_stop_reason` (string)
 - `github_issue_number` / `github_issue_url` (strings)
 
 ## `theworkshop.githubmap.v1`

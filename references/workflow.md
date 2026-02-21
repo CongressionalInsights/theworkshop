@@ -41,7 +41,32 @@ For project/workstream/job:
 - Verification (how we'll prove it)
 - Completion promise `<promise>{ID}-DONE</promise>`
 
-### Step 5: Agreement Gate
+### Step 5: Looping decision (plan-time)
+
+Before execution enters the run phase, decide whether the WI should be looped:
+
+- Should loop mode be enabled for this WI?
+- Loop mode:
+  - `until_complete` = continue until completion criteria are observed
+  - `max_iterations` = run a bounded number of attempts
+  - `promise_or_max` = stop when either promise is seen or max iterations reached
+- `max_iterations`:
+  - if not set on the WI frontmatter, default from `stakes` (`low=2`, `normal=3`, `high=5`, `critical=7`)
+  - can be explicitly overridden in planning (`loop_max_iterations`)
+- completion promise only required for `until_complete`/`promise_or_max` when running unbounded or if no finite cap exists
+
+Record the decision in the project-level `# Decisions` section and on the job frontmatter using:
+
+- `loop_enabled`
+- `loop_mode`
+- `loop_max_iterations`
+- `loop_target_promise`
+
+If looping is planned as the main execution path, call:
+
+- `theworkshop loop --project <path> --work-item-id WI-... --mode ... [--max-loops ...] [--completion-promise ...]`
+
+### Step 6: Agreement Gate
 
 Before execution begins, record agreement in project `plan.md`:
 - `agreement_status: agreed`

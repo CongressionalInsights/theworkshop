@@ -42,6 +42,7 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - Compatibility env injected for imagegen: `OPENAI_API_KEY`
   - Opt-out (tests/headless): set `THEWORKSHOP_NO_KEYCHAIN=1`
   - Headless/no-GUI approval fallback: set `CODEX_KEYCHAIN_APPROVE=1` when Keychain dialog cannot attach to a TTY/window (handled by the external `$apple-keychain` runner).
+- **PDF truth test portability**: `scripts/truth_gate_pdf_test.py` discovers a local Chrome/Chromium binary (via `THEWORKSHOP_PDF_BROWSER`/`THEWORKSHOP_CHROME_PATH` or system PATH) and exits with `TRUTH GATE PDF TEST SKIPPED` on unsupported platforms.
 - **GitHub mirror (opt-in)**: if the project is in GitHub, offer mirroring (issues/labels/milestones + best-effort project board) and keep it synced once enabled.
 
 ## Quick start (Codex runbook)
@@ -76,6 +77,11 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/job_complete.py --project /path/to/project --work-item-id WI-... --cascade
 {baseDir}/scripts/workstream_complete.py --project /path/to/project --workstream-id WS-...
 {baseDir}/scripts/project_complete.py --project /path/to/project
+
+# Loop execution (planning-time opt-in)
+{baseDir}/scripts/theworkshop loop --project /path/to/project --work-item-id WI-... --mode max_iterations --max-loops 3
+{baseDir}/scripts/theworkshop loop --project /path/to/project --work-item-id WI-... --mode until_complete --completion-promise WI-...-DONE
+{baseDir}/scripts/theworkshop loop --project /path/to/project --work-item-id WI-... --mode promise_or_max --max-loops 5 --completion-promise WI-...-DONE
 
 # Build dashboard artifacts
 {baseDir}/scripts/dashboard_build.py --project /path/to/project

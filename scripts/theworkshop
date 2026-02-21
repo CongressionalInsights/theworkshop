@@ -39,6 +39,49 @@ def main() -> int:
     sub.add_parser("sync", help="Sync plan tables (project/workstreams) from on-disk state")
     sub.add_parser("rollup", help="Roll up statuses (job->workstream->project) + sync plan tables")
     sub.add_parser("job-start", help="Start a job (status/timestamps/iteration + sync)")
+    loop_parser = sub.add_parser("loop", help="Run a job with Ralph-style repeated Codex execution")
+    loop_parser.add_argument("--project", help="Project root (defaults to nearest parent with plan.md)")
+    loop_parser.add_argument("--work-item-id", required=True, help="WI-... to execute")
+    loop_parser.add_argument(
+        "--mode",
+        choices=["until_complete", "max_iterations", "promise_or_max"],
+        help="Loop strategy: until_completion promise, bounded max attempts, or promise_or_max.",
+    )
+    loop_parser.add_argument("--max-loops", type=int, default=0, help="Max iterations before hard stop (0=derive default)")
+    loop_parser.add_argument(
+        "--max-walltime-sec",
+        type=int,
+        default=0,
+        help="Hard stop walltime in seconds (0=unlimited).",
+    )
+    loop_parser.add_argument("--completion-promise", default="", help="Completion promise text (inside <promise> tags).")
+    loop_parser.add_argument(
+        "--codex-arg",
+        action="append",
+        default=[],
+        help="Extra `codex exec` argument (repeatable).",
+    )
+    loop_parser.add_argument("--no-preflight", action="store_true", help="Skip prompt preflight check.")
+    loop_parser.add_argument(
+        "--preflight-threshold",
+        type=int,
+        default=75,
+        help="Preflight minimum score threshold (0-100).",
+    )
+    loop_parser.add_argument("--resume", action="store_true", help="Resume an existing loop session if state exists.")
+    loop_parser.add_argument(
+        "--allow-unmet-deps",
+        action="store_true",
+        help="Allow loop start when dependencies are not done (requires --decision-note).",
+    )
+    loop_parser.add_argument(
+        "--no-override",
+        action="store_true",
+        help="Alias for --allow-unmet-deps.",
+    )
+    loop_parser.add_argument("--decision-note", default="", help="Required with --allow-unmet-deps.")
+    loop_parser.add_argument("--no-open", action="store_true", help="Skip dashboard auto-open.")
+    loop_parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard updates.")
     sub.add_parser("job-complete", help="Complete a job (reward-gated) + sync")
     sub.add_parser("workstream-complete", help="Complete a workstream (only if all jobs are done) + sync")
     sub.add_parser("project-complete", help="Complete a project (only if all workstreams are done) + sync")
@@ -68,6 +111,7 @@ def main() -> int:
         "sync": "plan_sync.py",
         "rollup": "plan_sync.py",
         "job-start": "job_start.py",
+        "loop": "loop_job.py",
         "job-complete": "job_complete.py",
         "workstream-complete": "workstream_complete.py",
         "project-complete": "project_complete.py",
@@ -83,7 +127,7 @@ def main() -> int:
         "agent-log": "agent_log.py",
     }
     script = mapping[args.cmd]
-    return run(script, rest)
+    return run(script, sys.argv[2:])
 
 
 if __name__ == "__main__":

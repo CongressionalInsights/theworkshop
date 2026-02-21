@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import os
+import platform
 import struct
 import subprocess
 import sys
 import tempfile
 import zlib
+import shutil
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -141,88 +143,150 @@ def read_frontmatter(path: Path) -> dict:
     return split_frontmatter(path.read_text(encoding="utf-8", errors="ignore")).frontmatter
 
 
+def resolve_pdf_browser() -> tuple[Path | None, str]:
+    candidate_names = [
+        os.environ.get("THEWORKSHOP_PDF_BROWSER"),
+        os.environ.get("THEWORKSHOP_CHROME_PATH"),
+        "chrome",
+        "google-chrome",
+        "google-chrome-stable",
+        "microsoft-edge",
+        "chromium",
+        "chromium-browser",
+        "msedge",
+    ]
+
+    # Common app-bundle binaries on macOS.
+    if platform.system().lower().startswith("darwin"):
+        candidate_names = [
+            os.environ.get("THEWORKSHOP_PDF_BROWSER"),
+            os.environ.get("THEWORKSHOP_CHROME_PATH"),
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome Canary",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ] + candidate_names
+
+    seen = set()
+    for raw in candidate_names:
+        if not raw:
+            continue
+        if raw in seen:
+            continue
+        seen.add(raw)
+        path = Path(raw).expanduser()
+        if path.exists() and os.access(str(path), os.X_OK):
+            return path, "explicit/bundled path"
+        which = shutil.which(raw)
+        if which:
+            return Path(which), "PATH"
+    return None, "No Chrome/Chromium executable found. Set THEWORKSHOP_PDF_BROWSER or THEWORKSHOP_CHROME_PATH."
+
+
+def required_tools_available() -> tuple[bool, str, Path | None]:
+    if platform.system().lower().startswith("darwin"):
+        os_id = "darwin"
+    else:
+        os_id = platform.system().lower() or "unknown"
+
+    browser, source = resolve_pdf_browser()
+    if browser is None:
+        return (
+            False,
+            f"{source} (currently running on {os_id}; install Chromium/Chrome or set THEWORKSHOP_PDF_BROWSER)",
+            None,
+        )
+
+    if not shutil.which("pdfimages"):
+        return False, "Missing required command in PATH: pdfimages", None
+
+    return True, f"pdf_browser={browser} ({source})", browser
+
+
 def main() -> None:
     tmp = tempfile.TemporaryDirectory(prefix="theworkshop-truth-pdf-")
     base_dir = Path(tmp.name).resolve()
+    ok, reason, browser = required_tools_available()
+    if not ok:
+        print(f"TRUTH GATE PDF TEST SKIPPED: {reason}")
+        tmp.cleanup()
+        return
 
-    proj = run(py("project_new.py") + ["--name", "Truth PDF Test", "--base-dir", str(base_dir)]).stdout.strip()
-    project_root = Path(proj).resolve()
-    ws = run(py("workstream_add.py") + ["--project", str(project_root), "--title", "WS"]).stdout.strip()
-    wi = run(py("job_add.py") + ["--project", str(project_root), "--workstream", ws, "--title", "PDF Truth", "--stakes", "low"]).stdout.strip()
+    try:
+        proj = run(py("project_new.py") + ["--name", "Truth PDF Test", "--base-dir", str(base_dir)]).stdout.strip()
+        project_root = Path(proj).resolve()
+        ws = run(py("workstream_add.py") + ["--project", str(project_root), "--title", "WS"]).stdout.strip()
+        wi = run(py("job_add.py") + ["--project", str(project_root), "--workstream", ws, "--title", "PDF Truth", "--stakes", "low"]).stdout.strip()
 
-    set_frontmatter(
-        project_root / "plan.md",
-        agreement_status="agreed",
-        agreed_at=now_iso(),
-        agreed_notes="truth gate pdf test",
-        updated_at=now_iso(),
-    )
+        set_frontmatter(
+            project_root / "plan.md",
+            agreement_status="agreed",
+            agreed_at=now_iso(),
+            agreed_notes="truth gate pdf test",
+            updated_at=now_iso(),
+        )
 
-    job_dir = find_job_dir(project_root, wi)
-    patch_job_plan(job_dir / "plan.md", wi)
+        job_dir = find_job_dir(project_root, wi)
+        patch_job_plan(job_dir / "plan.md", wi)
 
-    outputs = job_dir / "outputs"
-    artifacts = job_dir / "artifacts"
-    outputs.mkdir(parents=True, exist_ok=True)
-    artifacts.mkdir(parents=True, exist_ok=True)
-    (outputs / "images").mkdir(parents=True, exist_ok=True)
+        outputs = job_dir / "outputs"
+        artifacts = job_dir / "artifacts"
+        outputs.mkdir(parents=True, exist_ok=True)
+        artifacts.mkdir(parents=True, exist_ok=True)
+        (outputs / "images").mkdir(parents=True, exist_ok=True)
 
-    write_png(outputs / "images" / "cover.png", 800, 1200, (20, 90, 150))
-    write_png(outputs / "images" / "diagram.png", 1200, 800, (130, 30, 80))
-    (outputs / "manual.css").write_text("body { font-family: sans-serif; }\n", encoding="utf-8")
+        write_png(outputs / "images" / "cover.png", 800, 1200, (20, 90, 150))
+        write_png(outputs / "images" / "diagram.png", 1200, 800, (130, 30, 80))
+        (outputs / "manual.css").write_text("body { font-family: sans-serif; }\n", encoding="utf-8")
 
-    # Intentionally reference missing image paths to force placeholder embeds while real assets still exist on disk.
-    html = """
-    <!doctype html>
-    <html><head><meta charset=\"utf-8\"><link rel=\"stylesheet\" href=\"manual.css\"></head>
-    <body>
-      <h1>PDF Truth Test</h1>
-      <img src=\"images/missing-cover.png\" alt=\"missing cover\" />
-      <img src=\"images/missing-diagram.png\" alt=\"missing diagram\" />
-      <p>Artifact truth test content.</p>
-    </body></html>
-    """.strip()
-    (outputs / "doc.html").write_text(html + "\n", encoding="utf-8")
+        # Intentionally reference missing image paths to force placeholder embeds while real assets still exist on disk.
+        html = """
+        <!doctype html>
+        <html><head><meta charset=\"utf-8\"><link rel=\"stylesheet\" href=\"manual.css\"></head>
+        <body>
+          <h1>PDF Truth Test</h1>
+          <img src=\"images/missing-cover.png\" alt=\"missing cover\" />
+          <img src=\"images/missing-diagram.png\" alt=\"missing diagram\" />
+          <p>Artifact truth test content.</p>
+        </body></html>
+        """.strip()
+        (outputs / "doc.html").write_text(html + "\n", encoding="utf-8")
 
-    chrome = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    if not chrome.exists():
-        raise RuntimeError(f"Missing Chrome binary required for test: {chrome}")
+        run(
+            [
+                str(browser),
+                "--headless",
+                "--disable-gpu",
+                "--virtual-time-budget=4000",
+                "--run-all-compositor-stages-before-draw",
+                "--allow-file-access-from-files",
+                f"--print-to-pdf={outputs / 'doc.pdf'}",
+                "--no-pdf-header-footer",
+                f"file://{outputs / 'doc.html'}",
+            ]
+        )
 
-    run(
-        [
-            str(chrome),
-            "--headless",
-            "--disable-gpu",
-            "--virtual-time-budget=4000",
-            "--run-all-compositor-stages-before-draw",
-            "--allow-file-access-from-files",
-            f"--print-to-pdf={outputs / 'doc.pdf'}",
-            "--no-pdf-header-footer",
-            f"file://{outputs / 'doc.html'}",
-        ]
-    )
+        pdfimages = run(["pdfimages", "-list", str(outputs / "doc.pdf")])
+        (artifacts / "pdfimages.txt").write_text(pdfimages.stdout, encoding="utf-8")
+        (artifacts / "verification.md").write_text(
+            "# Verification\n\nBuilt PDF and captured pdfimages output.\n",
+            encoding="utf-8",
+        )
 
-    pdfimages = run(["pdfimages", "-list", str(outputs / "doc.pdf")])
-    (artifacts / "pdfimages.txt").write_text(pdfimages.stdout, encoding="utf-8")
-    (artifacts / "verification.md").write_text(
-        "# Verification\n\nBuilt PDF and captured pdfimages output.\n",
-        encoding="utf-8",
-    )
+        run(py("job_start.py") + ["--project", str(project_root), "--work-item-id", wi])
+        failed = run(py("job_complete.py") + ["--project", str(project_root), "--work-item-id", wi], check=False)
+        if failed.returncode == 0:
+            raise RuntimeError("Expected job_complete to fail truth gate when PDF lacks expected embedded large images")
 
-    run(py("job_start.py") + ["--project", str(project_root), "--work-item-id", wi])
-    failed = run(py("job_complete.py") + ["--project", str(project_root), "--work-item-id", wi], check=False)
-    if failed.returncode == 0:
-        raise RuntimeError("Expected job_complete to fail truth gate when PDF lacks expected embedded large images")
+        fm = read_frontmatter(job_dir / "plan.md")
+        if str(fm.get("status") or "") == "done":
+            raise RuntimeError("Job should not be done when pdf_embeds_images truth check fails")
+        if str(fm.get("truth_last_status") or "") != "fail":
+            raise RuntimeError("Expected truth_last_status=fail after PDF truth failure")
 
-    fm = read_frontmatter(job_dir / "plan.md")
-    if str(fm.get("status") or "") == "done":
-        raise RuntimeError("Job should not be done when pdf_embeds_images truth check fails")
-    if str(fm.get("truth_last_status") or "") != "fail":
-        raise RuntimeError("Expected truth_last_status=fail after PDF truth failure")
-
-    print("TRUTH GATE PDF TEST PASSED")
-    print(str(project_root))
-    tmp.cleanup()
+        print("TRUTH GATE PDF TEST PASSED")
+        print(str(project_root))
+    finally:
+        tmp.cleanup()
 
 
 if __name__ == "__main__":

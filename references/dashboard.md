@@ -22,6 +22,7 @@ Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`.
 The dashboard must include:
 - Structure: project → workstreams → jobs
 - Status indicators
+- Loop state on jobs (`loop_enabled`, `loop_mode`, `loop_max_iterations`, `loop_status`, `loop_last_attempt`, `loop_last_stopped_at`, `loop_stop_reason`)
 - Dependencies (best-effort)
 - Wall-clock elapsed time since `project.started_at`
 - Execution log stats from `logs/execution.jsonl`

@@ -205,6 +205,15 @@ class Job:
     reward_target: int
     reward_last_score: int
     reward_last_next_action: str
+    loop_enabled: bool
+    loop_mode: str
+    loop_max_iterations: int
+    loop_target_promise: str
+    loop_status: str
+    loop_last_attempt: int
+    loop_last_started_at: str
+    loop_last_stopped_at: str
+    loop_stop_reason: str
 
 
 def load_workstream(workstream_dir: Path) -> Workstream:
@@ -228,6 +237,15 @@ def load_job(job_dir: Path) -> Job:
     reward_target = int(doc.frontmatter.get("reward_target", 0) or 0)
     reward_last_score = int(doc.frontmatter.get("reward_last_score", 0) or 0)
     reward_last_next_action = str(doc.frontmatter.get("reward_last_next_action", "") or "")
+    loop_enabled = bool(doc.frontmatter.get("loop_enabled", False))
+    loop_mode = str(doc.frontmatter.get("loop_mode", "") or "")
+    loop_max_iterations = int(doc.frontmatter.get("loop_max_iterations", 0) or 0)
+    loop_target_promise = str(doc.frontmatter.get("loop_target_promise", "") or "")
+    loop_status = str(doc.frontmatter.get("loop_status", "") or "")
+    loop_last_attempt = int(doc.frontmatter.get("loop_last_attempt", 0) or 0)
+    loop_last_started_at = str(doc.frontmatter.get("loop_last_started_at", "") or "")
+    loop_last_stopped_at = str(doc.frontmatter.get("loop_last_stopped_at", "") or "")
+    loop_stop_reason = str(doc.frontmatter.get("loop_stop_reason", "") or "")
     return Job(
         work_item_id=wi,
         title=title,
@@ -238,6 +256,15 @@ def load_job(job_dir: Path) -> Job:
         reward_target=reward_target,
         reward_last_score=reward_last_score,
         reward_last_next_action=reward_last_next_action,
+        loop_enabled=loop_enabled,
+        loop_mode=loop_mode,
+        loop_max_iterations=loop_max_iterations,
+        loop_target_promise=loop_target_promise,
+        loop_status=loop_status,
+        loop_last_attempt=loop_last_attempt,
+        loop_last_started_at=loop_last_started_at,
+        loop_last_stopped_at=loop_last_stopped_at,
+        loop_stop_reason=loop_stop_reason,
     )
 
 

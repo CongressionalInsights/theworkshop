@@ -401,6 +401,15 @@ def build_payload(project_root: Path) -> dict:
                     "status": j.status,
                     "wave_id": j.wave_id,
                     "depends_on": j.depends_on,
+                    "loop_enabled": j.loop_enabled,
+                    "loop_mode": j.loop_mode,
+                    "loop_max_iterations": j.loop_max_iterations,
+                    "loop_target_promise": j.loop_target_promise,
+                    "loop_status": j.loop_status,
+                    "loop_last_attempt": j.loop_last_attempt,
+                    "loop_last_started_at": j.loop_last_started_at,
+                    "loop_last_stopped_at": j.loop_last_stopped_at,
+                    "loop_stop_reason": j.loop_stop_reason,
                     "reward_target": j.reward_target,
                     "reward_score": int(reward.get("reward_score", j.reward_last_score)),
                     "reward_next_action": str(reward.get("next_action", j.reward_last_next_action)),
@@ -441,6 +450,12 @@ def build_payload(project_root: Path) -> dict:
             "done": sum(1 for j in jobs_all if j["status"] == "done"),
             "cancelled": sum(1 for j in jobs_all if j["status"] == "cancelled"),
         },
+        "loops_enabled": sum(1 for j in jobs_all if bool(j.get("loop_enabled"))),
+        "loops_active": sum(1 for j in jobs_all if str(j.get("loop_status") or "") == "active"),
+        "loops_completed": sum(1 for j in jobs_all if str(j.get("loop_status") or "") == "completed"),
+        "loops_blocked": sum(1 for j in jobs_all if str(j.get("loop_status") or "") == "blocked"),
+        "loops_stopped": sum(1 for j in jobs_all if str(j.get("loop_status") or "") == "stopped"),
+        "loops_error": sum(1 for j in jobs_all if str(j.get("loop_status") or "") == "error"),
     }
 
     tokens_payload = build_token_cost_payload(project_root, "codex")
@@ -502,6 +517,16 @@ def status_class(status: str) -> str:
     }.get(status, "st-planned")
 
 
+def loop_status_class(status: str) -> str:
+    return {
+        "active": "st-inprogress",
+        "completed": "st-done",
+        "blocked": "st-blocked",
+        "error": "st-cancelled",
+        "stopped": "st-cancelled",
+    }.get(status, "st-planned")
+
+
 def truth_class(status: str) -> str:
     return {
         "pass": "truth-pass",
@@ -531,6 +556,17 @@ def render_html(payload: dict) -> str:
             truth_text = f"<span class='truth-pill {truth_class(truth_status)}'>{html_escape(truth_status)}</span>"
             if truth_snippet:
                 truth_text += f"<div class='muted'>{html_escape(truth_snippet)}</div>"
+
+            loop_enabled = "enabled" if bool(j.get("loop_enabled")) else "disabled"
+            loop_status = str(j.get("loop_status") or "idle")
+            loop_state_class = loop_status_class(loop_status)
+            loop_mode = str(j.get("loop_mode") or "max_iterations")
+            loop_attempts = int(j.get("loop_last_attempt") or 0)
+            loop_max = int(j.get("loop_max_iterations") or 0)
+            loop_stop_reason = str(j.get("loop_stop_reason") or "n/a")
+            loop_target = str(j.get("loop_target_promise") or "")
+            loop_target_display = f"target={html_escape(loop_target)}" if loop_target else "target=<none>"
+
             rows.append(
                 "<tr>"
                 f"<td>{html_escape(j['work_item_id'])}</td>"
@@ -539,19 +575,27 @@ def render_html(payload: dict) -> str:
                 f"<td>{html_escape(j['wave_id'])}</td>"
                 f"<td>{html_escape(', '.join(j['depends_on']))}</td>"
                 f"<td>{truth_text}</td>"
+                f"<td>{loop_enabled}</td>"
+                f"<td><span class='pill {loop_state_class}'>{html_escape(loop_status)}</span></td>"
+                f"<td>{html_escape(loop_mode)}</td>"
+                f"<td>{loop_max}</td>"
+                f"<td>{loop_attempts}</td>"
+                f"<td>{loop_target_display}</td>"
+                f"<td>{html_escape(loop_stop_reason)}</td>"
                 f"<td>{j['reward_score']}/{j['reward_target']}</td>"
                 f"<td>{html_escape(j['reward_next_action'])}</td>"
                 "</tr>"
             )
         if not rows:
-            rows = ["<tr><td colspan='8' class='muted'>(no jobs)</td></tr>"]
+            rows = ["<tr><td colspan='14' class='muted'>(no jobs)</td></tr>"]
         ws_cards.append(
             "<section class='card'>"
             f"<h3>{html_escape(w['id'])}: {html_escape(w['title'])} "
             f"<span class='pill {status_class(w['status'])}'>{html_escape(w['status'])}</span></h3>"
             f"<p class='muted'>Depends on: {html_escape(', '.join(w['depends_on'])) or '(none)'}</p>"
             "<table>"
-            "<thead><tr><th>WI</th><th>Title</th><th>Status</th><th>Wave</th><th>Depends On</th><th>Truth</th><th>Reward</th><th>Next Action</th></tr></thead>"
+            "<thead><tr><th>WI</th><th>Title</th><th>Status</th><th>Wave</th><th>Depends On</th><th>Truth</th>"
+            "<th>Loop</th><th>Loop Status</th><th>Loop Mode</th><th>Loop Max</th><th>Loop Attempts</th><th>Loop Target</th><th>Loop Stop</th><th>Reward</th><th>Next Action</th></tr></thead>"
             "<tbody>"
             + "".join(rows)
             + "</tbody></table></section>"
@@ -875,6 +919,10 @@ def render_html(payload: dict) -> str:
       <div class="card"><h3>In Progress</h3><p>{stats['jobs_status']['in_progress']}</p></div>
       <div class="card"><h3>Blocked</h3><p>{stats['jobs_status']['blocked']}</p></div>
       <div class="card"><h3>Done</h3><p>{stats['jobs_status']['done']}</p></div>
+      <div class="card"><h3>Loop Jobs</h3>
+        <p>enabled: {stats['loops_enabled']}</p>
+        <p class="muted">active {stats['loops_active']} | completed {stats['loops_completed']} | blocked {stats['loops_blocked']} | stopped {stats['loops_stopped']} | error {stats['loops_error']}</p>
+      </div>
       <div class="card"><h3>Truth Status</h3><p>pass {truth_pass} | fail {truth_fail} | unknown {truth_unknown}</p></div>
       <div class="card"><h3>Stale Dependencies</h3><p>{stale_dependencies}</p></div>
       <div class="card"><h3>Sub-Agents</h3><p>active {sub_active} | completed {sub_completed} | failed {sub_failed}</p></div>
@@ -1100,6 +1148,7 @@ def render_md(payload: dict) -> str:
     lines.append(f"- In progress: {stats['jobs_status']['in_progress']}")
     lines.append(f"- Blocked: {stats['jobs_status']['blocked']}")
     lines.append(f"- Done: {stats['jobs_status']['done']}")
+    lines.append(f"- Loop jobs: enabled={stats['loops_enabled']} active={stats['loops_active']} completed={stats['loops_completed']} blocked={stats['loops_blocked']} stopped={stats['loops_stopped']} error={stats['loops_error']}")
     lines.append("")
     lines.append("## TruthGate")
     lines.append(f"- pass: {int(truth.get('pass') or 0)}")
@@ -1215,8 +1264,8 @@ def render_md(payload: dict) -> str:
     for w in payload["workstreams"]:
         lines.append(f"### {w['id']} {w['title']} ({w['status']})")
         lines.append("")
-        lines.append("| Work Item | Status | Wave | Depends On | Truth | Reward | Next Action |")
-        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| Work Item | Status | Wave | Depends On | Truth | Loop | Loop Status | Loop Mode | Loop Max | Loop Attempts | Loop Target | Loop Stop | Reward | Next Action |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for j in w["jobs"]:
             deps = ", ".join(j["depends_on"])
             truth_value = str(j.get("truth_status") or "unknown")
@@ -1224,11 +1273,18 @@ def render_md(payload: dict) -> str:
             truth_cell = truth_value if not snippet else f"{truth_value}: {snippet}"
             reward = f"{j['reward_score']}/{j['reward_target']}"
             next_action = str(j["reward_next_action"]).replace("|", "\\|")
+            loop_enabled = "enabled" if bool(j.get("loop_enabled")) else "disabled"
+            loop_status = str(j.get("loop_status") or "idle")
+            loop_mode = str(j.get("loop_mode") or "max_iterations")
+            loop_max = int(j.get("loop_max_iterations") or 0)
+            loop_attempts = int(j.get("loop_last_attempt") or 0)
+            loop_target = str(j.get("loop_target_promise") or "n/a")
+            loop_stop_reason = str(j.get("loop_stop_reason") or "n/a")
             lines.append(
-                f"| {j['work_item_id']} | {j['status']} | {j['wave_id']} | {deps} | {truth_cell} | {reward} | {next_action} |"
+                f"| {j['work_item_id']} | {j['status']} | {j['wave_id']} | {deps} | {truth_cell} | {loop_enabled} | {loop_status} | {loop_mode} | {loop_max} | {loop_attempts} | {loop_target} | {loop_stop_reason} | {reward} | {next_action} |"
             )
         if not w["jobs"]:
-            lines.append("| (none) |  |  |  |  |  |  |")
+            lines.append("| (none) |  |  |  |  |  |  |  |  |  |  |  |  |")
         lines.append("")
     return "\n".join(lines) + "\n"
 

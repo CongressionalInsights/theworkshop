@@ -135,6 +135,15 @@ started_at: ""
 updated_at: ""
 completed_at: ""
 completion_promise: "WI-YYYYMMDD-###-DONE"
+loop_enabled: false
+loop_mode: max_iterations
+loop_max_iterations: 0
+loop_target_promise: ""
+loop_status: ""
+loop_last_attempt: 0
+loop_last_started_at: ""
+loop_last_stopped_at: ""
+loop_stop_reason: ""
 outputs:
   - "outputs/<primary>.md"
 verification_evidence:
@@ -211,6 +220,22 @@ Verification:
 
 Only when all acceptance criteria are satisfied and verification evidence exists, output:
 <promise>WI-...-DONE</promise>
+```
+
+## Job Loop Planning Snippet
+
+Add the following in job planning notes when loop mode is planned:
+
+```md
+# Loop Plan
+
+- loop_enabled: true
+- loop_mode: promise_or_max
+- loop_max_iterations: 5
+- loop_target_promise: WI-...-DONE
+
+If the mode is `until_complete` or `promise_or_max`, ensure the objective/verification requires a deterministic completion promise.
+If `loop_enabled` is false, execute with a single-shot command path (`job_start` + `job_complete`).
 ```
 
 ## Imagegen Job Add-On (Template Snippet)
