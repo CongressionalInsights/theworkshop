@@ -45,6 +45,22 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **PDF truth test portability**: `scripts/truth_gate_pdf_test.py` discovers a local Chrome/Chromium binary (via `THEWORKSHOP_PDF_BROWSER`/`THEWORKSHOP_CHROME_PATH` or system PATH) and exits with `TRUTH GATE PDF TEST SKIPPED` on unsupported platforms.
 - **GitHub mirror (opt-in)**: if the project is in GitHub, offer mirroring (issues/labels/milestones + best-effort project board) and keep it synced once enabled.
 
+## Distribution
+
+To install/update the skill from GitHub:
+
+```bash
+git clone https://github.com/CongressionalInsights/theworkshop.git
+mkdir -p "$CODEX_HOME/skills"
+cp -R theworkshop "$CODEX_HOME/skills/theworkshop"
+```
+
+To update:
+
+```bash
+cd "$CODEX_HOME/skills/theworkshop" && git pull origin main
+```
+
 ## Quick start (Codex runbook)
 
 These commands are for Codex's internal runbook/audit trail. Do not present them as instructions to the user; only list them under **Commands run (audit)** after execution.
