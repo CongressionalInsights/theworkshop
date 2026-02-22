@@ -69,3 +69,20 @@
   - clone from `https://github.com/CongressionalInsights/theworkshop.git`
   - install under `$CODEX_HOME/skills/theworkshop`
   - update via `git pull origin main`
+
+## 2026-02-22 (`v0.1.1`)
+
+### Open-Source Credential Baseline
+- Refactored image generation authentication to a provider-agnostic contract owned by TheWorkshop.
+- Introduced canonical OSS key: `THEWORKSHOP_IMAGEGEN_API_KEY` (env-first default, cross-platform).
+- Kept compatibility fallbacks for `OPENAI_API_KEY` and `OPENAI_KEY`.
+- Added optional explicit keychain provider mode:
+  - `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
+  - optional `THEWORKSHOP_KEYCHAIN_RUNNER`
+  - optional service override via `THEWORKSHOP_KEYCHAIN_SERVICE(S)`
+- Updated docs (`README.md`, `SKILL.md`, `references/workflow.md`, `references/prompting.md`, `references/templates.md`) for provider-first setup.
+- Updated `scripts/imagegen_job.py` with `auto|env|keychain` resolution and env-first command execution behavior.
+- Updated `scripts/doctor.py` to pass on env-only credentials and treat keychain as optional.
+- Added credential provider tests:
+  - env-only success and env-failure guidance in `scripts/imagegen_job_test.py`
+  - env-required preflight behavior in `scripts/doctor_test.py`
