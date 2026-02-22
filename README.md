@@ -126,10 +126,26 @@ Use work-item scoped image generation:
 python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002
 ```
 
-Auth semantics:
+Set one provider before first run:
 
-- Canonical keychain secret: `OPENAI_KEY`
-- Compatibility injection for image tooling: `OPENAI_API_KEY`
+```bash
+export THEWORKSHOP_IMAGEGEN_API_KEY=...
+```
+
+Compatibility for existing local setups:
+
+```bash
+export OPENAI_API_KEY=...
+```
+
+Optional legacy keychain flow:
+
+```bash
+export THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain
+export THEWORKSHOP_KEYCHAIN_SERVICE=OPENAI_KEY
+```
+
+The `apple-keychain` skill remains optional and cross-platform fallback behavior is env-first.
 
 ## Reliability Checks
 

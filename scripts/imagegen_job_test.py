@@ -24,6 +24,7 @@ def run(cmd: list[str], *, env: dict | None = None, check: bool = True) -> subpr
     merged["THEWORKSHOP_NO_OPEN"] = "1"
     merged["THEWORKSHOP_NO_MONITOR"] = "1"
     merged["THEWORKSHOP_NO_KEYCHAIN"] = "1"
+    merged["THEWORKSHOP_IMAGEGEN_API_KEY"] = "unit-test-key"
     if env:
         merged.update(env)
     proc = subprocess.run(cmd, text=True, capture_output=True, env=merged)
@@ -94,6 +95,34 @@ def main() -> None:
         raise RuntimeError(f"Expected dry_run marker in output, got:\n{proc.stdout}")
     if "prompt_out_paths:" not in (proc.stdout or ""):
         raise RuntimeError(f"Expected prompt_out_paths marker in output, got:\n{proc.stdout}")
+    if "credential_source=env:THEWORKSHOP_IMAGEGEN_API_KEY" not in (proc.stdout or ""):
+        raise RuntimeError(f"Expected env credential source marker, got:\n{proc.stdout}")
+
+    proc_no_credential = run(
+        py("imagegen_job.py")
+        + ["--project", str(project_root), "--work-item-id", wi_id, "--dry-run", "--credential-provider", "env"],
+        env={
+            "THEWORKSHOP_IMAGEGEN_API_KEY": "",
+            "THEWORKSHOP_NO_KEYCHAIN": "0",
+            "THEWORKSHOP_KEYCHAIN_RUNNER": "/not-a-real-path/keychain_run.sh",
+        },
+        check=False,
+    )
+    if proc_no_credential.returncode == 0:
+        raise RuntimeError(
+            "imagegen_job should fail when env credential missing and keychain unavailable in env mode:\n"
+            f"{proc_no_credential.stdout}\n{proc_no_credential.stderr}"
+        )
+    combined = (proc_no_credential.stdout or "") + (proc_no_credential.stderr or "")
+    if (
+        "Missing image credentials for env mode" not in combined
+        and "Set THEWORKSHOP_IMAGEGEN_API_KEY" not in combined
+    ):
+        raise RuntimeError(
+            f"Expected missing credential guidance, got:\n{proc_no_credential.stdout}\n{proc_no_credential.stderr}"
+        )
+
+    print("IMAGEGEN JOB CREDENTIAL FAILURE TEST PASSED")
 
     print("IMAGEGEN JOB DRY-RUN TEST PASSED")
     print(str(project_root))

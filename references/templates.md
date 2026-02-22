@@ -269,6 +269,9 @@ verification_evidence:
 
 - Run:
   - `theworkshop imagegen-job --project <project> --work-item-id WI-...`
+- Configure credentials once per environment:
+  - `export THEWORKSHOP_IMAGEGEN_API_KEY=...` (recommended)
+  - Optional legacy: `export OPENAI_API_KEY=...` for existing local setups
 - Confirm declared PNG outputs exist and are non-empty.
 - Confirm dimensions in `artifacts/verification.md`.
 ```

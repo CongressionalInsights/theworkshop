@@ -48,6 +48,11 @@ Verification should reference on-disk evidence:
 Completion promises must be objectively true and only emitted at the end:
 - `<promise>WI-20260214-001-DONE</promise>`
 
+For image-asset jobs, planning should include a credential setup note:
+- Default env credential: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred for OSS compatibility).
+- Fallback note (legacy): `OPENAI_API_KEY` / `OPENAI_KEY` may continue to work if already configured.
+- Avoid hard-coding provider credentials in prompts or templates; keep key material outside project files.
+
 ## Looping planning prompt (before execution)
 
 Add a short planning decision step before execution:

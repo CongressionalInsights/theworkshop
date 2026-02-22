@@ -38,10 +38,11 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - `THEWORKSHOP_MAX_PARALLEL_AGENTS`: cap concurrent delegated agents
   - `THEWORKSHOP_NO_SUBAGENTS=1`: hard-disable delegation for tests/headless runs
 - **Image generation first-class**: for image jobs, run `imagegen_job.py` so key retrieval, imagegen execution, output validation, and verification logging are consistent.
-  - Canonical Keychain service: `OPENAI_KEY`
-  - Compatibility env injected for imagegen: `OPENAI_API_KEY`
+  - OSS-first API env: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred and cross-platform)
+  - Compatibility env aliases: `OPENAI_API_KEY`, `OPENAI_KEY` (legacy, fallback only)
+  - Optional keychain mode for macOS via `$apple-keychain`: `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
   - Opt-out (tests/headless): set `THEWORKSHOP_NO_KEYCHAIN=1`
-  - Headless/no-GUI approval fallback: set `CODEX_KEYCHAIN_APPROVE=1` when Keychain dialog cannot attach to a TTY/window (handled by the external `$apple-keychain` runner).
+  - Headless/no-GUI approval fallback: set `CODEX_KEYCHAIN_APPROVE=1` when keychain dialog cannot attach to a TTY/window.
 - **PDF truth test portability**: `scripts/truth_gate_pdf_test.py` discovers a local Chrome/Chromium binary (via `THEWORKSHOP_PDF_BROWSER`/`THEWORKSHOP_CHROME_PATH` or system PATH) and exits with `TRUTH GATE PDF TEST SKIPPED` on unsupported platforms.
 - **GitHub mirror (opt-in)**: if the project is in GitHub, offer mirroring (issues/labels/milestones + best-effort project board) and keep it synced once enabled.
 
@@ -108,7 +109,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Open + keep dashboard live (best-effort)
 {baseDir}/scripts/dashboard_monitor.py --project /path/to/project
 
-# Run image generation for a WI (imagegen + apple-keychain)
+# Run image generation for a WI
 {baseDir}/scripts/imagegen_job.py --project /path/to/project --work-item-id WI-...
 
 # Reliability preflight

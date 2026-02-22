@@ -7,6 +7,11 @@
 - Promoted a canonical systems architecture diagram to `docs/assets/theworkshop-systems-architecture.png` and linked it from `README.md`.
 - Reworked root documentation into an OSS-oriented entrypoint: install, quickstart, gate model, reliability posture, imagegen path, and roadmap.
 - Added community and governance docs: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `SUPPORT.md`.
+- Refactored image-generation credentialing for OSS safety and portability:
+  - New canonical env var: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred).
+  - Legacy compatibility aliases retained: `OPENAI_API_KEY`, `OPENAI_KEY`.
+  - Optional keychain provider mode via `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain` and optional `$apple-keychain` runner.
+  - Added provider-aware credential checks in `scripts/doctor.py` and env/keychain resolution helpers in `scripts/imagegen_job.py`.
 - Added GitHub collaboration scaffolding: issue templates, PR template, and automated close policy for stale `status:needs-repro` reports.
 - Added release operations docs: `RELEASE_CHECKLIST.md` and structured notes in `releases/v0.1.0.md`.
 
@@ -47,7 +52,7 @@
 
 ### Image Generation Reliability
 - Added first-class WI image generation runner (`scripts/imagegen_job.py`) with prompts validation, declared-output checks, and verification artifact capture.
-- Standardized keychain behavior around canonical `OPENAI_KEY` with compatibility injection as `OPENAI_API_KEY` for imagegen tooling.
+- Standardized image credentialing around `THEWORKSHOP_IMAGEGEN_API_KEY` with legacy `OPENAI_API_KEY` compatibility, and optional keychain fallback for macOS.
 - Documented/validated headless approval fallback path (`CODEX_KEYCHAIN_APPROVE=1`) for non-interactive runs.
 
 ### Test Coverage

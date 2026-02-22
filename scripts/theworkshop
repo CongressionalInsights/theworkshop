@@ -85,7 +85,7 @@ def main() -> int:
     sub.add_parser("job-complete", help="Complete a job (reward-gated) + sync")
     sub.add_parser("workstream-complete", help="Complete a workstream (only if all jobs are done) + sync")
     sub.add_parser("project-complete", help="Complete a project (only if all workstreams are done) + sync")
-    sub.add_parser("imagegen-job", help="Run image generation for a WI job (imagegen + apple-keychain)")
+    sub.add_parser("imagegen-job", help="Run image generation for a WI job (provider-agnostic credentials)")
     sub.add_parser("doctor", help="Preflight checks for one-pass reliability")
     sub.add_parser("lessons-capture", help="Append a lesson and rebuild index")
     sub.add_parser("lessons-query", help="Query lessons")

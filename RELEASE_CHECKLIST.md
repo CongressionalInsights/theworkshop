@@ -17,7 +17,7 @@
 
 - [ ] Run `scripts/*_test.py`
 - [ ] Run one synthetic end-to-end scenario and verify gates + dashboard artifacts
-- [ ] Verify imagegen path via `OPENAI_KEY` -> `OPENAI_API_KEY` injection
+- [ ] Verify imagegen path with `THEWORKSHOP_IMAGEGEN_API_KEY` (env-first), plus optional legacy `OPENAI_*` aliases
 
 ## 4. GitHub Metadata + Triage Setup
 

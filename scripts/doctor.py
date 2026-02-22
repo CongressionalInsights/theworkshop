@@ -4,24 +4,27 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
 from twlib import codex_home, codex_session_token_snapshot
 
+from imagegen_job import (
+    CANONICAL_IMAGEGEN_PROVIDER_DEFAULT,
+    THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE,
+    THEWORKSHOP_IMAGEGEN_API_KEY,
+    THEWORKSHOP_NO_KEYCHAIN,
+    resolve_imagegen_credential_provider,
+    resolve_keychain_runner,
+)
 
-def check_keychain_service(service: str) -> bool:
-    proc = subprocess.run(
-        ["security", "find-generic-password", "-s", service],
-        text=True,
-        capture_output=True,
-    )
-    return int(proc.returncode) == 0
+
+def _env_value(key: str) -> str:
+    return str(os.environ.get(key, "")).strip()
 
 
 def session_id() -> str:
     for k in ("THEWORKSHOP_SESSION_ID", "CODEX_THREAD_ID", "TERM_SESSION_ID", "ITERM_SESSION_ID"):
-        v = str(os.environ.get(k) or "").strip()
+        v = _env_value(k)
         if v:
             return v
     return ""
@@ -37,6 +40,20 @@ def session_logs_exist(sid: str, root: Path) -> bool:
         return any(sid in p.name for p in sessions.rglob("rollout-*.jsonl"))
     except Exception:
         return False
+
+
+def image_credential_ok() -> tuple[bool, str]:
+    no_keychain = _env_value(THEWORKSHOP_NO_KEYCHAIN) == "1"
+    requested_provider = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE) or CANONICAL_IMAGEGEN_PROVIDER_DEFAULT
+    try:
+        resolution = resolve_imagegen_credential_provider(
+            requested_provider,
+            approve="ttl:1h",
+            no_keychain=no_keychain,
+        )
+        return True, resolution.source
+    except SystemExit as exc:
+        return False, str(exc)
 
 
 def main() -> None:
@@ -58,19 +75,31 @@ def main() -> None:
     if not imagegen_ok:
         failures.append("Install the `imagegen` skill under $CODEX_HOME/skills/imagegen.")
 
-    keychain_runner = ch / "skills" / "apple-keychain" / "scripts" / "keychain_run.sh"
-    keychain_ok = keychain_runner.exists()
-    print(f"[{'OK' if keychain_ok else 'FAIL'}] apple-keychain skill: {keychain_runner}")
-    if not keychain_ok:
-        failures.append("Install the `apple-keychain` skill under $CODEX_HOME/skills/apple-keychain.")
+    cred_ok, cred_detail = image_credential_ok()
+    if cred_ok:
+        print(f"[OK] image credentials: {cred_detail}")
+    else:
+        print(f"[FAIL] image credentials: {cred_detail}")
+        failures.append(
+            f"Set {THEWORKSHOP_IMAGEGEN_API_KEY} (recommended) for non-Apple environments. "
+            f"Optionally install apple-keychain and set service credentials for `keychain` mode."
+        )
 
-    key_openai = check_keychain_service("OPENAI_KEY")
-    key_legacy = check_keychain_service("OPENAI_API_KEY")
-    key_ok = key_openai or key_legacy
-    service_label = "OPENAI_KEY" if key_openai else "OPENAI_API_KEY" if key_legacy else "missing"
-    print(f"[{'OK' if key_ok else 'FAIL'}] keychain item: {service_label}")
-    if not key_ok:
-        failures.append("Add a generic password in macOS Keychain with service `OPENAI_KEY`.")
+    # Show keychain path status only when meaningful.
+    if cred_ok and cred_detail.startswith("keychain:"):
+        selected_provider = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE).lower() or "auto"
+        keychain_runner = resolve_keychain_runner(os.environ)
+        keychain_runner_ok = keychain_runner.exists()
+        print(
+            f"[{'OK' if keychain_runner_ok else 'FAIL'}] apple-keychain skill: {keychain_runner}"
+        )
+        if not keychain_runner_ok and selected_provider == "keychain":
+            failures.append(
+                "Install the `apple-keychain` skill under $CODEX_HOME/skills/apple-keychain "
+                "or switch image credentials to env mode."
+            )
+    elif cred_ok:
+        print("[OK] apple-keychain skill: not selected")
 
     sid = session_id()
     logs_ok = session_logs_exist(sid, ch)
@@ -98,7 +127,7 @@ def main() -> None:
 
     print("DOCTOR: OK")
     for n in notes:
-        print(f"- {n}")
+        print(f"- note: {n}")
 
 
 if __name__ == "__main__":

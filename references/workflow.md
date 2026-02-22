@@ -157,14 +157,17 @@ When rebuilding dashboard/usage artifacts:
 For jobs that generate visual assets:
 - Use `theworkshop imagegen-job --project <path> --work-item-id WI-...`
 - This runner uses:
-  - Keychain service `OPENAI_KEY` (fallback `OPENAI_API_KEY`)
-  - Injected env `OPENAI_API_KEY` for imagegen compatibility
+  - OSS-first env credential `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred, cross-platform)
+  - Optional legacy env compatibility aliases: `OPENAI_API_KEY`, `OPENAI_KEY` (low-priority fallback)
+  - Keychain fallback provider when env is missing (`apple-keychain` optional dependency)
   - Batch prompts from `artifacts/prompts.jsonl`
   - Output validation + verification logging
+- Provider override option:
+  - `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=auto|env|keychain`
+  - `THEWORKSHOP_KEYCHAIN_SERVICE=OPENAI_KEY` (or `THEWORKSHOP_KEYCHAIN_SERVICES=svc1,svc2`)
 - Headless/test opt-out for keychain: `THEWORKSHOP_NO_KEYCHAIN=1`
-- If Keychain approval dialog cannot attach to GUI/TTY, use explicit non-interactive approval:
+- If keychain approval dialog cannot attach to GUI/TTY, use explicit non-interactive approval:
   - `CODEX_KEYCHAIN_APPROVE=1`
-  - This variable is interpreted by the external `$apple-keychain` skill runner used by `imagegen_job.py`.
 
 ### GitHub mirror (opt-in)
 
