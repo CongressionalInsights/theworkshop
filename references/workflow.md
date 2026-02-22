@@ -165,6 +165,7 @@ For jobs that generate visual assets:
 - Provider override option:
   - `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=auto|env|keychain`
   - `THEWORKSHOP_KEYCHAIN_SERVICE=OPENAI_KEY` (or `THEWORKSHOP_KEYCHAIN_SERVICES=svc1,svc2`)
+  - CLI override: `--credential-provider auto|env|keychain`
 - Headless/test opt-out for keychain: `THEWORKSHOP_NO_KEYCHAIN=1`
 - If keychain approval dialog cannot attach to GUI/TTY, use explicit non-interactive approval:
   - `CODEX_KEYCHAIN_APPROVE=1`

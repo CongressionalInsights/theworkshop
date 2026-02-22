@@ -124,6 +124,8 @@ Use work-item scoped image generation:
 
 ```bash
 python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002
+python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002 --credential-provider env
+python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002 --credential-provider keychain --approve ttl:1h
 ```
 
 Set one provider before first run:

@@ -12,6 +12,7 @@
   - Legacy compatibility aliases retained: `OPENAI_API_KEY`, `OPENAI_KEY`.
   - Optional keychain provider mode via `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain` and optional `$apple-keychain` runner.
   - Added provider-aware credential checks in `scripts/doctor.py` and env/keychain resolution helpers in `scripts/imagegen_job.py`.
+  - Added explicit provider-override controls (`auto|env|keychain`) in imagegen runner documentation and CLI help text.
 - Added GitHub collaboration scaffolding: issue templates, PR template, and automated close policy for stale `status:needs-repro` reports.
 - Added release operations docs: `RELEASE_CHECKLIST.md` and structured notes in `releases/v0.1.0.md`.
 

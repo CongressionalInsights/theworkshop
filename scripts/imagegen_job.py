@@ -322,7 +322,11 @@ def main() -> None:
         default=True,
         help="Mirror generated PNGs to <project>/outputs/images (default: true)",
     )
-    parser.add_argument("--approve", default="ttl:1h", help="apple-keychain approval mode (default: ttl:1h)")
+    parser.add_argument(
+        "--approve",
+        default="ttl:1h",
+        help="keychain runner approval mode (applies only when keychain provider is selected)",
+    )
     parser.add_argument(
         "--credential-provider",
         default=os.environ.get(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE, CANONICAL_IMAGEGEN_PROVIDER_DEFAULT),
