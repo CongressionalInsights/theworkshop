@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### GSD Pattern Adoptions (TheWorkshop)
+- Added intent-locking flow via `scripts/discuss.py` and CLI `theworkshop discuss`.
+  - Captures/locks pre-execution context in `notes/context/<WS-or-WI>-CONTEXT.md`.
+  - Supports merge/replace updates and explicit `context_required` gating for jobs.
+- Added resumable human verification via `scripts/verify_work.py` and CLI `theworkshop verify-work`.
+  - Persists UAT artifacts to `outputs/uat/<run-id>-UAT.md` and `outputs/uat/<run-id>-UAT.json`.
+  - Routes failed checks into structured follow-up actions and completion gate blockers.
+- Added project-integrity checks via `scripts/health.py` and CLI `theworkshop health [--repair]`.
+  - Validates frontmatter integrity, id/path consistency, dependency references, cycles, stale references, and context gate health.
+  - `--repair` performs safe-only auto-fixes and rebuilds derived artifacts.
+- Added short-path ad-hoc execution via `scripts/quick.py` and CLI `theworkshop quick`.
+  - Isolates one-off tasks under `quick/<id>-<slug>/`.
+  - Preserves control-plane visibility by logging quick runs into project progress and dashboard rebuild paths.
+- Added centralized utility layer `scripts/tw_tools.py` for shared logic:
+  - frontmatter/section helpers
+  - discovery and context-gate validation helpers
+  - common script runner and rollup helpers
+- Extended control-plane gates and scoring:
+  - `job_start.py`, `job_complete.py`, and `plan_check.py` now enforce context/UAT gate semantics.
+  - `reward_eval.py` now includes UAT-aware penalties and next-action routing.
+- Added additive schema-compatible fields for jobs:
+  - `context_required`, `context_ref`
+  - `uat_last_status`, `uat_last_checked_at`, `uat_open_issues`, `uat_follow_up_actions`
+- Added regression coverage for the new flows in `scripts/workflow_extensions_test.py` and updated smoke checks in `scripts/smoke_test.py`.
+
 ### Public Launch Baseline (`v0.1.0`)
 - Prepared GitHub-first open-source packaging for adoption/trust with lean maintainer overhead.
 - Promoted a canonical systems architecture diagram to `docs/assets/theworkshop-systems-architecture.png` and linked it from `README.md`.

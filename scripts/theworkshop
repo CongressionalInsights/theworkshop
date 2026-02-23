@@ -87,6 +87,10 @@ def main() -> int:
     sub.add_parser("project-complete", help="Complete a project (only if all workstreams are done) + sync")
     sub.add_parser("imagegen-job", help="Run image generation for a WI job (provider-agnostic credentials)")
     sub.add_parser("doctor", help="Preflight checks for one-pass reliability")
+    sub.add_parser("health", help="Validate project topology/integrity and optionally repair safe issues")
+    sub.add_parser("discuss", help="Capture intent context for a workstream/job")
+    sub.add_parser("verify-work", help="Run resumable conversational UAT and persist follow-up actions")
+    sub.add_parser("quick", help="Run a short-path ad-hoc task under quick/<id>")
     sub.add_parser("lessons-capture", help="Append a lesson and rebuild index")
     sub.add_parser("lessons-query", help="Query lessons")
     sub.add_parser("usage", help="Usage snapshot (tokens/time)")
@@ -117,6 +121,10 @@ def main() -> int:
         "project-complete": "project_complete.py",
         "imagegen-job": "imagegen_job.py",
         "doctor": "doctor.py",
+        "health": "health.py",
+        "discuss": "discuss.py",
+        "verify-work": "verify_work.py",
+        "quick": "quick.py",
         "lessons-capture": "lessons_capture.py",
         "lessons-query": "lessons_query.py",
         "usage": "usage_snapshot.py",

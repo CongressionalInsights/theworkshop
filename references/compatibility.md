@@ -75,6 +75,14 @@ Job-level truth/orchestration:
 - `agent_type_hint`
 - `parallel_group`
 
+Job-level context/UAT payload:
+- `context_required`
+- `context_ref`
+- `uat_last_status`
+- `uat_last_checked_at`
+- `uat_open_issues`
+- `uat_follow_up_actions`
+
 Dashboard tokens/billing payload (additive):
 - `billing_mode`
 - `billing_confidence`
@@ -85,6 +93,12 @@ Dashboard tokens/billing payload (additive):
 - `api_equivalent_project_cost_usd`
 - `display_cost_primary_label`
 - `display_cost_secondary_label`
+
+Additional control-plane artifacts (additive, no `plan.v1` break):
+- `notes/context/*.md` (`theworkshop.context.v1`)
+- `outputs/uat/*-UAT.json|md` (`theworkshop.uat.v1`)
+- `outputs/health.json` (`theworkshop.health.v1`)
+- `quick/*/plan.md` (`theworkshop.quick.v1`)
 
 ## Orchestration Payload Compatibility
 

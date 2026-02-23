@@ -7,22 +7,8 @@ import sys
 from pathlib import Path
 
 from plan_sync import sync_project_plans
+from tw_tools import append_section_bullet, validate_context_gate_for_job
 from twlib import list_job_dirs, list_workstream_dirs, normalize_str_list, now_iso, read_md, resolve_project_root, write_md
-
-
-def append_progress_log(body: str, line: str) -> str:
-    heading = "# Progress Log"
-    if heading not in body:
-        return body.rstrip() + "\n\n" + heading + "\n\n" + f"- {line}\n"
-    pre, rest = body.split(heading, 1)
-    rest_lines = rest.splitlines()
-    insert_at = len(rest_lines)
-    for i, ln in enumerate(rest_lines[1:], start=1):
-        if ln.startswith("# "):
-            insert_at = i
-            break
-    new_rest = rest_lines[:insert_at] + [f"- {line}"] + rest_lines[insert_at:]
-    return (pre + heading + "\n" + "\n".join(new_rest)).rstrip() + "\n"
 
 
 def find_job_dir(project_root: Path, wi: str) -> Path:
@@ -79,6 +65,9 @@ def gating_errors(project_root: Path, job_dir: Path) -> list[str]:
     fm = doc.frontmatter
     errors: list[str] = []
 
+    context_errors, _context_warnings, _context_ref = validate_context_gate_for_job(project_root, job_dir / "plan.md")
+    errors.extend([f"context gate: {msg}" for msg in context_errors])
+
     target = int(fm.get("reward_target") or 0)
     score = int(fm.get("reward_last_score") or 0)
     if score < target:
@@ -91,6 +80,13 @@ def gating_errors(project_root: Path, job_dir: Path) -> list[str]:
     truth_failures = normalize_str_list(fm.get("truth_last_failures"))
     if truth_failures:
         errors.append("truth failures present: " + "; ".join(truth_failures[:3]))
+
+    uat_open_issues = normalize_str_list(fm.get("uat_open_issues"))
+    if uat_open_issues:
+        errors.append("UAT gate: open issues present: " + "; ".join(uat_open_issues[:3]))
+    uat_status = str(fm.get("uat_last_status") or "").strip().lower()
+    if uat_status == "fail":
+        errors.append("UAT gate: latest verify-work status is fail")
 
     errors.extend(dependency_gate_errors(project_root, fm))
 
@@ -154,7 +150,7 @@ def try_complete_workstream(project_root: Path, ws_dir: Path, *, ts: str) -> str
     if not str(ws_doc.frontmatter.get("completed_at") or "").strip():
         ws_doc.frontmatter["completed_at"] = ts
     ws_doc.frontmatter["updated_at"] = ts
-    ws_doc.body = append_progress_log(ws_doc.body, f"{ts} auto-complete: all jobs done; status=done")
+    ws_doc.body = append_section_bullet(ws_doc.body, "# Progress Log", f"{ts} auto-complete: all jobs done; status=done")
     write_md(ws_plan, ws_doc)
     return ws_id
 
@@ -180,7 +176,7 @@ def try_complete_project(project_root: Path, *, ts: str) -> str | None:
     if not str(proj_doc.frontmatter.get("completed_at") or "").strip():
         proj_doc.frontmatter["completed_at"] = ts
     proj_doc.frontmatter["updated_at"] = ts
-    proj_doc.body = append_progress_log(proj_doc.body, f"{ts} auto-complete: all workstreams done; status=done")
+    proj_doc.body = append_section_bullet(proj_doc.body, "# Progress Log", f"{ts} auto-complete: all workstreams done; status=done")
     write_md(proj_plan, proj_doc)
     return proj_id or "PROJECT"
 
@@ -238,8 +234,9 @@ def main() -> None:
         doc.frontmatter["status"] = "blocked"
         doc.frontmatter["completed_at"] = ""
         doc.frontmatter["updated_at"] = ts_dep_fail
-        doc.body = append_progress_log(
+        doc.body = append_section_bullet(
             doc.body,
+            "# Progress Log",
             f"{ts_dep_fail} job_complete: FAILED dependency gate; status=blocked; errors: {', '.join(dep_errors[:5])}",
         )
         write_md(plan_path, doc)
@@ -257,7 +254,7 @@ def main() -> None:
     ts_attempt = now_iso()
     doc = read_md(plan_path)
     doc.frontmatter["updated_at"] = ts_attempt
-    doc.body = append_progress_log(doc.body, f"{ts_attempt} job_complete: attempting completion (prev_status={prev_status})")
+    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts_attempt} job_complete: attempting completion (prev_status={prev_status})")
     write_md(plan_path, doc)
 
     # Evaluate reward + truth while still non-done (no tentative done loophole).
@@ -273,8 +270,9 @@ def main() -> None:
         doc.frontmatter["status"] = fail_status if prev_status != "done" else prev_status
         doc.frontmatter["completed_at"] = ""
         doc.frontmatter["updated_at"] = ts_fail
-        doc.body = append_progress_log(
+        doc.body = append_section_bullet(
             doc.body,
+            "# Progress Log",
             f"{ts_fail} job_complete: FAILED gate; reverting to {doc.frontmatter['status']}; errors: {', '.join(errors[:5])}",
         )
         write_md(plan_path, doc)
@@ -287,7 +285,7 @@ def main() -> None:
     doc = read_md(plan_path)
     doc.frontmatter["status"] = "done"
     doc.frontmatter["completed_at"] = ts_ok
-    doc.body = append_progress_log(doc.body, f"{ts_ok} job_complete: gate PASSED; status=done confirmed")
+    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts_ok} job_complete: gate PASSED; status=done confirmed")
     doc.frontmatter["updated_at"] = ts_ok
     write_md(plan_path, doc)
 

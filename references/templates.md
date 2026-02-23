@@ -135,6 +135,8 @@ started_at: ""
 updated_at: ""
 completed_at: ""
 completion_promise: "WI-YYYYMMDD-###-DONE"
+context_required: false
+context_ref: ""
 loop_enabled: false
 loop_mode: max_iterations
 loop_max_iterations: 0
@@ -154,6 +156,10 @@ reward_last_next_action: ""
 truth_last_status: unknown
 truth_last_failures: []
 truth_last_checked_at: ""
+uat_last_status: unknown
+uat_last_checked_at: ""
+uat_open_issues: []
+uat_follow_up_actions: []
 orchestration_group_id: ""
 orchestration_group_rank: 0
 github_issue_number: ""

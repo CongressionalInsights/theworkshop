@@ -89,6 +89,7 @@ python3 scripts/project_new.py --name "Workshop Demo"
 # add workstream + job
 python3 scripts/workstream_add.py --project /path/to/project --title "Research"
 python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Draft options memo"
+python3 scripts/discuss.py --project /path/to/project --work-item-id WI-YYYYMMDD-001 --decision "Use concise format" --required --no-interactive
 
 # validate and orchestrate
 python3 scripts/plan_check.py --project /path/to/project
@@ -97,7 +98,12 @@ python3 scripts/orchestrate_plan.py --project /path/to/project
 
 # execute one job
 python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
+python3 scripts/verify_work.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
 python3 scripts/job_complete.py --project /path/to/project --work-item-id WI-YYYYMMDD-001 --cascade
+
+# optional utility lanes
+python3 scripts/health.py --project /path/to/project --repair
+python3 scripts/quick.py --project /path/to/project --title "One-off patch" --command "echo done"
 ```
 
 Expected core outputs:
@@ -108,6 +114,12 @@ Expected core outputs:
 - `outputs/<date>-task-tracker.csv`
 - `logs/execution.jsonl`
 - `artifacts/truth-report.json`
+- `notes/context/<WS-or-WI>-CONTEXT.md`
+- `outputs/uat/<run-id>-UAT.md`
+- `outputs/uat/<run-id>-UAT.json`
+- `outputs/health.json`
+- `quick/<id>-<slug>/plan.md`
+- `quick/<id>-<slug>/summary.md`
 
 ## Monitoring + Spend Semantics
 

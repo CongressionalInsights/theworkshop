@@ -73,6 +73,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Add workstreams and jobs
 {baseDir}/scripts/workstream_add.py --project /path/to/project --title "Research"
 {baseDir}/scripts/job_add.py --project /path/to/project --workstream WS-... --title "Draft brief" --stakes normal
+{baseDir}/scripts/discuss.py --project /path/to/project --work-item-id WI-... --decision "Lock key behavior" --required --no-interactive
 
 # Build/update the task tracker (1 row per job)
 {baseDir}/scripts/task_tracker_build.py --project /path/to/project
@@ -91,6 +92,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 
 # Lifecycle helpers (reward-gated completion)
 {baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-...
+{baseDir}/scripts/verify_work.py --project /path/to/project --work-item-id WI-...
 {baseDir}/scripts/job_complete.py --project /path/to/project --work-item-id WI-... --cascade
 {baseDir}/scripts/workstream_complete.py --project /path/to/project --workstream-id WS-...
 {baseDir}/scripts/project_complete.py --project /path/to/project
@@ -114,6 +116,10 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 
 # Reliability preflight
 {baseDir}/scripts/doctor.py
+{baseDir}/scripts/health.py --project /path/to/project --repair
+
+# Quick ad-hoc lane (separate from workstream/job graph)
+{baseDir}/scripts/quick.py --project /path/to/project --title "One-off task" --command "echo done"
 
 # Usage snapshot (tokens + spend metadata)
 {baseDir}/scripts/usage_snapshot.py --project /path/to/project
