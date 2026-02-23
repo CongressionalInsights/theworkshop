@@ -53,11 +53,17 @@ If you need complex content, put it in the Markdown body, not frontmatter.
 - `iteration` (int)
 - `rework_count` (int)
 - `rework_reason` (string)
+- `context_required` (bool)
+- `context_ref` (relative path to `notes/context/*.md`)
 - `outputs` (list of relative paths)
 - `verification_evidence` (list of relative paths)
 - `reward_last_score` (int)
 - `reward_last_eval_at` (string)
 - `reward_last_next_action` (string)
+- `uat_last_status` (string: `unknown|pass|fail`)
+- `uat_last_checked_at` (string)
+- `uat_open_issues` (list of strings)
+- `uat_follow_up_actions` (list of strings)
 - `loop_enabled` (bool)
 - `loop_mode` (string: `until_complete|max_iterations|promise_or_max`)
 - `loop_max_iterations` (int)
@@ -104,6 +110,59 @@ Additive `tokens.*` fields (no schema bump):
 - `cost_breakdown`: `{input_uncached,cached_input,output,reasoning_output}`
 - `by_work_item`: list of `{work_item_id,estimated_cost_usd,weight_basis,tokens_allocated}`
 - `unattributed_cost_usd`
+
+## `theworkshop.context.v1`
+
+Stored in `notes/context/<WS-or-WI>-CONTEXT.md`.
+
+- `schema`
+- `target_kind` (`workstream|job`)
+- `target_id` (`WS-*|WI-*`)
+- `created_at`, `updated_at`
+- `locked_decisions` (list of strings)
+- `deferred_ideas` (list of strings)
+- `notes` (list of strings)
+
+## `theworkshop.uat.v1`
+
+Stored in `outputs/uat/<run-id>-UAT.json` and rendered into `outputs/uat/<run-id>-UAT.md`.
+
+- `schema`
+- `run_id`
+- `target_kind`, `target_id`
+- `status` (`testing|completed`)
+- `created_at`, `updated_at`
+- `current_index`
+- `tests`: list of `{work_item_id,name,expected,status,response,severity,follow_up}`
+- `summary`: `{total,passed,failed,skipped,pending}`
+- `open_issues`: list of `{work_item_id,severity,reason,follow_up}`
+
+## `theworkshop.health.v1`
+
+Stored in `outputs/health.json`.
+
+- `schema`
+- `generated_at`
+- `project`
+- `status` (`healthy|degraded|broken`)
+- `errors`, `warnings`, `info` (issue lists)
+- `repairable_count`
+- `repairs_suggested`
+- `repairs_performed`
+
+## `theworkshop.quick.v1`
+
+Stored in `quick/<id>-<slug>/plan.md` with summary in `quick/<id>-<slug>/summary.md`.
+
+- `schema`
+- `kind` (`quick_task`)
+- `id`
+- `title`
+- `status` (`planned|in_progress|done|blocked`)
+- `work_item_id` (optional WI linkage)
+- `commands` (list of shell commands)
+- `created_at`, `updated_at`, `completed_at`
+- `summary` (relative path)
 
 ## `theworkshop.rewards.v1`
 

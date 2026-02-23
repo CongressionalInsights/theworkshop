@@ -7,22 +7,8 @@ import sys
 from pathlib import Path
 
 from plan_sync import sync_project_plans
+from tw_tools import append_section_bullet, validate_context_gate_for_job
 from twlib import normalize_str_list, now_iso, read_md, resolve_project_root, write_md
-
-
-def append_progress_log(body: str, line: str) -> str:
-    heading = "# Progress Log"
-    if heading not in body:
-        return body.rstrip() + "\n\n" + heading + "\n\n" + f"- {line}\n"
-    pre, rest = body.split(heading, 1)
-    rest_lines = rest.splitlines()
-    insert_at = len(rest_lines)
-    for i, ln in enumerate(rest_lines[1:], start=1):
-        if ln.startswith("# "):
-            insert_at = i
-            break
-    new_rest = rest_lines[:insert_at] + [f"- {line}"] + rest_lines[insert_at:]
-    return (pre + heading + "\n" + "\n".join(new_rest)).rstrip() + "\n"
 
 
 def append_decision_log(body: str, line: str) -> str:
@@ -146,6 +132,13 @@ def main() -> None:
     if prev_status in {"done", "cancelled"}:
         raise SystemExit(f"Cannot start job in status={prev_status!r}: {wi}")
 
+    # Context gate: if context is required for this job, it must exist before execution starts.
+    context_errors, context_warnings, context_ref = validate_context_gate_for_job(project_root, plan_path)
+    if context_errors:
+        raise SystemExit("Context gate failed:\n- " + "\n- ".join(context_errors))
+    for warning in context_warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
     deps = normalize_str_list(doc.frontmatter.get("depends_on"))
     dep_states = dependency_statuses(project_root, deps)
     unmet = [f"{dep}={state}" for dep, state in dep_states if state != "done"]
@@ -166,7 +159,7 @@ def main() -> None:
         proj_doc.body = append_decision_log(proj_doc.body, decision)
         proj_doc.frontmatter["updated_at"] = ts
         write_md(project_root / "plan.md", proj_doc)
-        doc.body = append_progress_log(doc.body, f"{ts} dependency_override: {', '.join(unmet)}; note: {args.decision_note.strip()}")
+        doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} dependency_override: {', '.join(unmet)}; note: {args.decision_note.strip()}")
 
     # Transition -> in_progress and stamp times.
     doc.frontmatter["status"] = "in_progress"
@@ -185,7 +178,9 @@ def main() -> None:
             iteration += 1
     doc.frontmatter["iteration"] = iteration
     doc.frontmatter["updated_at"] = ts
-    doc.body = append_progress_log(doc.body, f"{ts} job_start: {prev_status} -> in_progress (iteration {iteration})")
+    if context_ref:
+        doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} context gate: using {context_ref}")
+    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} job_start: {prev_status} -> in_progress (iteration {iteration})")
     write_md(plan_path, doc)
 
     if not args.no_sync:

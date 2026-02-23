@@ -34,14 +34,32 @@ Deterministic heuristics to apply:
 - Identify critical path (weighted by `estimate_hours`).
 - Rewrite ambiguous acceptance criteria into checkable outcomes and explicit output paths.
 
-### Step 4: Success Hooks
+### Step 4: Intent Lock (`theworkshop discuss`)
+
+Before execution for ambiguous jobs/workstreams, capture context in:
+- `notes/context/<WS-or-WI>-CONTEXT.md`
+
+The context file should record:
+- `locked_decisions` (what is in-scope and fixed)
+- `deferred_ideas` (explicitly out-of-scope for now)
+- `notes` (non-decision context)
+
+For jobs that require pre-execution alignment, set:
+- `context_required: true`
+- `context_ref: notes/context/WI-...-CONTEXT.md`
+
+Execution gate behavior:
+- `job_start` fails if `context_required=true` and `context_ref` is missing/empty.
+- `plan_check` enforces the same requirement when execution is in progress/done.
+
+### Step 5: Success Hooks
 
 For project/workstream/job:
 - Acceptance Criteria
 - Verification (how we'll prove it)
 - Completion promise `<promise>{ID}-DONE</promise>`
 
-### Step 5: Looping decision (plan-time)
+### Step 6: Looping decision (plan-time)
 
 Before execution enters the run phase, decide whether the WI should be looped:
 
@@ -66,7 +84,7 @@ If looping is planned as the main execution path, call:
 
 - `theworkshop loop --project <path> --work-item-id WI-... --mode ... [--max-loops ...] [--completion-promise ...]`
 
-### Step 6: Agreement Gate
+### Step 7: Agreement Gate
 
 Before execution begins, record agreement in project `plan.md`:
 - `agreement_status: agreed`
@@ -109,6 +127,24 @@ Before claiming a job passed verification, run TruthGate checks and persist resu
 - `truth_last_checked_at`: timestamp of the latest TruthGate run
 
 TruthGate must be current with the latest job artifacts. If TruthGate fails, the job remains `in_progress` (or `blocked`) until failures are resolved.
+
+### Verify Work / UAT (recommended)
+
+Use `theworkshop verify-work` to run resumable conversational UAT over observable acceptance criteria.
+
+Artifacts:
+- `outputs/uat/<run-id>-UAT.json`
+- `outputs/uat/<run-id>-UAT.md`
+
+Job frontmatter fields updated by verify-work:
+- `uat_last_status`
+- `uat_last_checked_at`
+- `uat_open_issues`
+- `uat_follow_up_actions`
+
+Gate interaction:
+- `reward_eval.py` uses unresolved UAT issues to lower reward score and drive next-action hints.
+- `job_complete.py` blocks completion when unresolved UAT issues exist.
 
 ### Orchestration + agent log flow (required when delegation is enabled)
 
@@ -175,3 +211,28 @@ For jobs that generate visual assets:
 If GitHub is detected or provided, offer mirroring. Do not create external artifacts until enabled.
 
 Once enabled, keep `notes/github-map.json` and issue/milestone status synced.
+
+## Utility Lanes
+
+### Health + Repair
+
+Use `theworkshop health [--repair]` to validate:
+- plan topology and dependency consistency
+- ID/path consistency
+- malformed frontmatter
+- stale/orphan state references
+
+`--repair` applies safe-only fixes:
+- create missing control-plane paths
+- rebuild derived artifacts (sync/tracker/orchestration/dashboard)
+- create placeholder artifacts only for non-done jobs
+
+### Quick Tasks
+
+Use `theworkshop quick` for short-path ad-hoc tasks.
+
+Storage:
+- `quick/<id>-<slug>/plan.md`
+- `quick/<id>-<slug>/summary.md`
+
+Quick tasks are kept out of workstream/job rollup logic but still append project progress entries and refresh dashboard artifacts.

@@ -9,7 +9,8 @@ A job may be truthfully marked `done` only when all required gates pass:
 1. Agreement gate (project `agreement_status=agreed` before execution/completion)
 2. Reward gate (`reward_last_score >= reward_target`)
 3. Truth gate (`truth_last_status=pass` and no unresolved truth failures)
-4. Dependency/freshness consistency (dependencies done, required outputs/evidence present and non-empty)
+4. UAT gate (`uat_open_issues` empty and `uat_last_status != fail`)
+5. Dependency/freshness consistency (dependencies done, required outputs/evidence present and non-empty)
 
 Scripts that enforce this model:
 - `scripts/reward_eval.py`
@@ -66,6 +67,14 @@ If `truth_last_status != pass` or `truth_last_failures` is non-empty:
 - but completion remains blocked,
 - and `job_complete.py` will not emit a done promise.
 
+## UAT Interaction (Hard Block)
+
+If verify-work records unresolved issues:
+- `uat_last_status == fail` or
+- `uat_open_issues` is non-empty
+
+then completion remains blocked until the issues are resolved and verify-work is rerun.
+
 ## Iteration Budget Behavior
 
 If `iteration > max_iterations`:
@@ -76,15 +85,16 @@ If `iteration > max_iterations`:
 
 `reward_eval.py` writes `reward_last_next_action` based on first failing condition, with stable priority:
 
-1. truth failures
-2. missing outputs
-3. missing verification evidence
-4. placeholder/weak acceptance criteria
-5. placeholder/weak verification plan
-6. stale/missing dashboard or task tracker artifacts
-7. insufficient execution log evidence
-8. GitHub parity gaps when mirroring is enabled
-9. final QA/log hygiene reminder
+1. unresolved UAT issues
+2. truth failures
+3. missing outputs
+4. missing verification evidence
+5. placeholder/weak acceptance criteria
+6. placeholder/weak verification plan
+7. stale/missing dashboard or task tracker artifacts
+8. insufficient execution log evidence
+9. GitHub parity gaps when mirroring is enabled
+10. final QA/log hygiene reminder
 
 ## Completion Promise Rule
 

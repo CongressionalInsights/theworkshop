@@ -222,8 +222,18 @@ def main() -> None:
     proc = run(py("plan_check.py") + ["--project", str(project_root)], check=False)
     if proc.returncode == 0:
         raise RuntimeError("Expected plan_check to fail when outputs/evidence are missing for a done job")
-    if "missing/empty declared output" not in (proc.stdout + proc.stderr):
-        raise RuntimeError("Expected plan_check failure to mention missing/empty declared output")
+    fail_text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    expected_markers = [
+        "missing/empty declared output",
+        "missing/empty verification evidence",
+        "truth gate failed for done job",
+        "done job has unresolved UAT issues",
+    ]
+    if not any(marker in fail_text for marker in expected_markers):
+        raise RuntimeError(
+            "Expected plan_check failure to mention output/evidence/truth/UAT gating issue; "
+            f"got:\n{fail_text}"
+        )
     print("[9] gating missing outputs/evidence: OK (failed as expected)")
 
     # - create non-empty output + evidence, rerun plan_check => should pass

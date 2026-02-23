@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from truth_eval import evaluate_job_truth
+from tw_tools import rollup_status, validate_context_gate_for_job
 from twlib import (
     STATUS_VALUES,
     STAKE_VALUES,
@@ -12,6 +13,7 @@ from twlib import (
     list_workstream_dirs,
     load_job,
     load_workstream,
+    normalize_str_list,
     parse_time,
     read_md,
     resolve_project_root,
@@ -45,16 +47,6 @@ JOB_HEADINGS = [
     "# Progress Log",
     "# Relevant Lessons Learned",
 ]
-
-
-def rollup_status(states: list[str]) -> str:
-    if any(s == "in_progress" for s in states):
-        return "in_progress"
-    if any(s == "blocked" for s in states):
-        return "blocked"
-    if states and all(s in {"done", "cancelled"} for s in states):
-        return "done"
-    return "planned"
 
 
 def heading_missing(body: str, headings: list[str]) -> list[str]:
@@ -171,6 +163,16 @@ def main() -> None:
             if missing_job:
                 errors.append(f"{rel(project_root, job_plan)}: missing headings: {', '.join(missing_job)}")
 
+            ctx_errors, ctx_warnings, _ctx_ref = validate_context_gate_for_job(project_root, job_plan)
+            if j_status in {"in_progress", "blocked", "done"}:
+                for msg in ctx_errors:
+                    errors.append(f"{rel(project_root, job_plan)}: {msg}")
+            else:
+                for msg in ctx_errors:
+                    warnings.append(f"{rel(project_root, job_plan)}: {msg}")
+            for msg in ctx_warnings:
+                warnings.append(f"{rel(project_root, job_plan)}: {msg}")
+
             stakes = str(jfm.get("stakes", "")).strip()
             if stakes not in STAKE_VALUES:
                 errors.append(f"{rel(project_root, job_plan)}: invalid stakes {stakes!r}")
@@ -214,6 +216,16 @@ def main() -> None:
                     failures = [str(x) for x in (truth.get("failures") or [])]
                     detail = "; ".join(failures[:3]) if failures else "unknown truth failure"
                     errors.append(f"{rel(project_root, job_plan)}: truth gate failed for done job: {detail}")
+
+                uat_open_issues = normalize_str_list(jfm.get("uat_open_issues"))
+                if uat_open_issues:
+                    errors.append(
+                        f"{rel(project_root, job_plan)}: done job has unresolved UAT issues: "
+                        + "; ".join(uat_open_issues[:3])
+                    )
+                uat_status = str(jfm.get("uat_last_status") or "").strip().lower()
+                if uat_status == "fail":
+                    errors.append(f"{rel(project_root, job_plan)}: done job has uat_last_status=fail")
 
             # Iteration budget gate: if exceeded, must be blocked (until decision).
             try:

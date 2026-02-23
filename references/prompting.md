@@ -73,6 +73,35 @@ Then run the execution command chosen for this WI:
 - `theworkshop loop --project <path> --work-item-id WI-...`
 - append `--mode`, `--max-loops`, `--completion-promise`, and `--max-walltime-sec` as needed
 
+## Intent lock before execution (`theworkshop discuss`)
+
+For ambiguous jobs/workstreams, capture decisions before execution:
+
+- `theworkshop discuss --project <path> --work-item-id WI-... --decision \"...\" --defer \"...\"`
+
+Write context in:
+- `notes/context/WI-...-CONTEXT.md`
+
+When the job must not run without this alignment, set:
+- `context_required: true`
+- `context_ref: notes/context/WI-...-CONTEXT.md`
+
+Execution will fail at `job_start` if context is required but missing.
+
+## Verify-work UAT loop (`theworkshop verify-work`)
+
+After implementation, run conversational UAT:
+
+- `theworkshop verify-work --project <path> --work-item-id WI-...`
+
+This updates job-level UAT fields:
+- `uat_last_status`
+- `uat_last_checked_at`
+- `uat_open_issues`
+- `uat_follow_up_actions`
+
+If UAT issues remain open, completion should be blocked until resolved.
+
 ## Agreement gate language (recommended)
 
 Use a short confirmation question:

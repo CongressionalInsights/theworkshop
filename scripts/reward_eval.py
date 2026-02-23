@@ -15,6 +15,7 @@ from twlib import (
     list_job_dirs,
     list_workstream_dirs,
     load_job,
+    normalize_str_list,
     now_iso,
     read_md,
     resolve_project_root,
@@ -216,6 +217,11 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
     except Exception:
         pass
 
+    uat_open_issues = normalize_str_list(fm.get("uat_open_issues"))
+    uat_status = str(fm.get("uat_last_status") or "").strip().lower()
+    if uat_open_issues or uat_status == "fail":
+        penalties -= min(20, 5 + 2 * len(uat_open_issues))
+
     total = max(0, min(100, int(round(base + penalties))))
 
     truth = evaluate_job_truth(project_root, job_dir)
@@ -224,7 +230,10 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
 
     # Next action hints (deterministic)
     next_action = ""
-    if not truth_pass:
+    if uat_open_issues or uat_status == "fail":
+        issue = uat_open_issues[0] if uat_open_issues else "latest verify-work status is fail"
+        next_action = "Resolve UAT issue: " + issue
+    elif not truth_pass:
         next_action = "Truth gate failed: " + (truth_failures[0] if truth_failures else "run truth_eval.py and fix failing checks.")
     elif outputs and len(outputs_ok) < len(outputs):
         missing = [o for o in outputs if o not in outputs_ok]
@@ -285,6 +294,10 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
             "status": "pass" if truth_pass else "fail",
             "failures": truth_failures,
             "checks": truth.get("checks") or [],
+        },
+        "uat": {
+            "status": uat_status or "unknown",
+            "open_issues": uat_open_issues,
         },
     }
 
