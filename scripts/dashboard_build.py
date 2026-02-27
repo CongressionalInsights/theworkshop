@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,160 @@ def truncate_text(value: str, *, limit: int = 120) -> str:
     return text[: max(0, limit - 3)].rstrip() + "..."
 
 
+def short_id(value: Any, *, keep: int = 8) -> str:
+    token = str(value or "").strip()
+    if not token:
+        return ""
+    return token if len(token) <= keep else token[:keep]
+
+
+def short_wi_id(value: Any) -> str:
+    token = str(value or "").strip()
+    if not token:
+        return "WI-???"
+    match = re.search(r"\bWI-\d{8}-(\d+)\b", token)
+    if match:
+        return f"WI-{match.group(1).zfill(3)}"
+    if token.startswith("WI-"):
+        tail = token.split("-")[-1]
+        if tail.isdigit():
+            return f"WI-{tail.zfill(3)}"
+        return token
+    return token
+
+
+def build_work_item_index(workstreams: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = {}
+    for ws in workstreams:
+        ws_id = str(ws.get("id") or "").strip()
+        ws_title = str(ws.get("title") or "").strip()
+        for job in ws.get("jobs") or []:
+            if not isinstance(job, dict):
+                continue
+            wi = str(job.get("work_item_id") or "").strip()
+            if not wi:
+                continue
+            out[wi] = {
+                "title": str(job.get("title") or "").strip(),
+                "ws_id": ws_id,
+                "ws_title": ws_title,
+                "wi_short": short_wi_id(wi),
+            }
+    return out
+
+
+def normalize_event_phrase(value: Any) -> str:
+    token = str(value or "").strip()
+    if not token:
+        return ""
+    token = token.replace("_", " ").replace("-", " ")
+    token = re.sub(r"\s+", " ", token).strip()
+    token = re.sub(r"\b(\w+)\s+\1\b", r"\1", token, flags=re.IGNORECASE)
+    return token.lower()
+
+
+def normalize_message_for_display(message: Any, wi_id: str, wi_short: str) -> str:
+    text = str(message or "").strip()
+    if not text:
+        return ""
+    if wi_id:
+        text = text.replace(wi_id, wi_short)
+    text = re.sub(r"\b(active|completed|failed|blocked)\s+\1\b", r"\1", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip(" -:\t")
+    return truncate_text(text, limit=160)
+
+
+def humanize_subagent_event(evt: dict[str, Any], wi_index: dict[str, dict[str, str]]) -> dict[str, Any]:
+    wi_id = str(evt.get("work_item_id") or "").strip()
+    wi_meta = wi_index.get(wi_id) or {}
+    wi_short = short_wi_id(wi_id) if wi_id else "WI-???"
+    wi_title = str(wi_meta.get("title") or "").strip()
+    if wi_title:
+        display_work_item = f"{wi_title} ({wi_short})"
+    elif wi_id:
+        display_work_item = wi_short
+    else:
+        display_work_item = "Unlinked task"
+
+    source = normalize_subagent_source(evt.get("source"))
+    agent_type = str(evt.get("agent_type") or "worker").strip().lower()
+    agent_short = short_id(evt.get("agent_id"))
+    display_actor = f"{source} {agent_type}"
+    if agent_short:
+        display_actor += f" #{agent_short}"
+
+    status_raw = str(evt.get("status") or "").strip()
+    status = classify_subagent_status(status_raw) or normalize_event_phrase(status_raw) or "updated"
+    if status == "active":
+        status_word = "started"
+    elif status in {"completed", "failed", "blocked"}:
+        status_word = status
+    else:
+        status_word = "updated"
+
+    message = normalize_message_for_display(evt.get("message"), wi_id, wi_short)
+    base = f"{display_work_item} {status_word}"
+    if message:
+        display_text = f"{base} - {message} ({display_actor})"
+    else:
+        display_text = f"{base} ({display_actor})"
+    verb = {
+        "started": "Started",
+        "completed": "Completed",
+        "failed": "Failed",
+        "blocked": "Blocked",
+        "updated": "Updated",
+    }.get(status_word, "Updated")
+    if wi_title:
+        ticker_subject = f"{wi_short}: {truncate_text(wi_title, limit=44)}"
+    elif wi_id:
+        ticker_subject = wi_short
+    else:
+        ticker_subject = "Unlinked task"
+    ticker_text = f"{verb}: {ticker_subject}"
+    if message:
+        ticker_text = truncate_text(f"{ticker_text} - {truncate_text(message, limit=56)}", limit=90)
+
+    severity = "info"
+    if status == "failed":
+        severity = "error"
+    elif status == "blocked":
+        severity = "warn"
+
+    raw_payload = evt.get("raw")
+    if not isinstance(raw_payload, dict):
+        raw_payload = dict(evt)
+
+    return {
+        **evt,
+        "display_text": display_text,
+        "ticker_text": ticker_text,
+        "display_actor": display_actor,
+        "display_work_item": display_work_item,
+        "display_severity": severity,
+        "raw": raw_payload,
+    }
+
+
+def humanize_dispatch_summary(summary: dict[str, Any]) -> str:
+    if not isinstance(summary, dict):
+        return ""
+    keys = {"group_count", "job_count", "completed", "simulated", "failed_or_blocked"}
+    if not any(key in summary for key in keys):
+        return ""
+    groups = int(summary.get("group_count") or 0)
+    jobs = int(summary.get("job_count") or 0)
+    completed = int(summary.get("completed") or 0)
+    simulated = int(summary.get("simulated") or 0)
+    failed_or_blocked = int(summary.get("failed_or_blocked") or 0)
+    return (
+        f"{groups} group{'s' if groups != 1 else ''} executed, "
+        f"{jobs} job{'s' if jobs != 1 else ''} run, "
+        f"{completed} completed, {simulated} simulated, "
+        f"{failed_or_blocked} failed/blocked"
+    )
+
+
 def normalize_truth_status(value: Any) -> str:
     raw = str(value or "").strip().lower()
     if raw in {"pass", "passed", "ok", "success", "succeeded", "green"}:
@@ -139,11 +294,13 @@ def classify_subagent_status(value: str) -> str | None:
     token = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
     if not token:
         return None
+    if "block" in token:
+        return "blocked"
     if any(k in token for k in ("fail", "error", "cancel", "timeout")):
         return "failed"
     if any(k in token for k in ("complete", "done", "success", "pass", "finish")):
         return "completed"
-    if any(k in token for k in ("active", "running", "in_progress", "start", "queue", "dispatch", "launch")):
+    if any(k in token for k in ("active", "running", "in_progress", "start", "spawn", "queue", "dispatch", "launch")):
         return "active"
     return None
 
@@ -159,30 +316,49 @@ def parse_subagent_event(entry: dict[str, Any]) -> tuple[str | None, str]:
     return None, ""
 
 
-def read_subagents(project_root: Path, *, recent_limit: int = 12) -> dict:
-    path = project_root / "logs" / "agents.jsonl"
+def _load_jsonl_dicts(path: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
     if not path.exists():
-        return {
-            "present": False,
-            "path": str(path.relative_to(project_root)),
-            "counts": {"active": 0, "completed": 0, "failed": 0},
-            "recent_events": [],
-        }
-
-    latest_by_agent: dict[str, str] = {}
-    parsed_events: list[dict[str, str]] = []
-
-    for idx, ln in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines()):
+        return out
+    for ln in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         if not ln.strip():
             continue
         try:
             entry = json.loads(ln)
         except Exception:
             continue
-        if not isinstance(entry, dict):
-            continue
+        if isinstance(entry, dict):
+            out.append(entry)
+    return out
 
+
+def normalize_subagent_source(value: Any) -> str:
+    token = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if token in {"dispatch", "manual", "external"}:
+        return token
+    if "dispatch" in token:
+        return "dispatch"
+    if "external" in token:
+        return "external"
+    return "manual"
+
+
+def _summarize_subagent_entries(
+    entries: list[dict[str, Any]],
+    *,
+    recent_limit: int,
+    source_filter: str | None = None,
+    include_blocked: bool = False,
+) -> tuple[dict[str, int], list[dict[str, str]]]:
+    latest_by_agent: dict[str, str] = {}
+    parsed_events: list[dict[str, str]] = []
+    source_filter_norm = normalize_subagent_source(source_filter) if source_filter else ""
+
+    for idx, entry in enumerate(entries):
         status, raw_event = parse_subagent_event(entry)
+        source = normalize_subagent_source(entry.get("source"))
+        if source_filter_norm and source != source_filter_norm:
+            continue
         agent_id = str(
             entry.get("agent_id")
             or entry.get("subagent_id")
@@ -205,25 +381,123 @@ def read_subagents(project_root: Path, *, recent_limit: int = 12) -> dict:
             {
                 "timestamp": str(entry.get("timestamp") or entry.get("at") or entry.get("time") or ""),
                 "agent_id": agent_id,
+                "agent_type": str(entry.get("agent_type") or ""),
                 "work_item_id": str(entry.get("work_item_id") or ""),
                 "event": raw_event or str(entry.get("event") or ""),
                 "status": status or "unknown",
+                "source": source,
+                "dispatch_run_id": str(entry.get("dispatch_run_id") or ""),
+                "group_index": str(entry.get("group_index") or ""),
                 "message": truncate_text(message, limit=160),
+                "raw": entry,
             }
         )
 
-    counts = {
+    counts: dict[str, int] = {
         "active": sum(1 for s in latest_by_agent.values() if s == "active"),
         "completed": sum(1 for s in latest_by_agent.values() if s == "completed"),
         "failed": sum(1 for s in latest_by_agent.values() if s == "failed"),
     }
+    if include_blocked:
+        counts["blocked"] = sum(1 for s in latest_by_agent.values() if s == "blocked")
     recent_events = parsed_events[-recent_limit:] if parsed_events else []
-    return {
-        "present": True,
-        "path": str(path.relative_to(project_root)),
-        "counts": counts,
-        "recent_events": recent_events,
+    return counts, recent_events
+
+
+def read_subagents(project_root: Path, *, recent_limit: int = 12) -> dict:
+    subagents, _ = read_subagent_telemetry(project_root, recent_limit=recent_limit)
+    return subagents
+
+
+def read_dispatch(project_root: Path, *, recent_limit: int = 12) -> dict:
+    _, dispatch = read_subagent_telemetry(project_root, recent_limit=recent_limit)
+    return dispatch
+
+
+def read_subagent_telemetry(project_root: Path, *, recent_limit: int = 12) -> tuple[dict, dict]:
+    path = project_root / "logs" / "agents.jsonl"
+    dispatch_log = project_root / "logs" / "subagent-dispatch.jsonl"
+    execution_path = project_root / "outputs" / "orchestration-execution.json"
+    agent_entries = _load_jsonl_dicts(path)
+    dispatch_entries = _load_jsonl_dicts(dispatch_log)
+    canonical_entries: list[dict[str, Any]] = []
+    subagents_path = path
+    subagents_note = ""
+    dispatch_mode = "not_used"
+
+    if agent_entries:
+        canonical_entries = agent_entries
+        has_dispatch_events = any(
+            normalize_subagent_source(entry.get("source")) == "dispatch"
+            for entry in canonical_entries
+        )
+        dispatch_mode = "active" if has_dispatch_events else "not_used"
+    elif dispatch_entries:
+        canonical_entries = [{**entry, "source": "dispatch"} for entry in dispatch_entries]
+        subagents_path = dispatch_log
+        subagents_note = "derived from legacy dispatch log (agents log missing)."
+        dispatch_mode = "legacy_fallback"
+
+    if canonical_entries:
+        sub_counts, sub_recent_events = _summarize_subagent_entries(canonical_entries, recent_limit=recent_limit)
+    else:
+        sub_counts, sub_recent_events = ({"active": 0, "completed": 0, "failed": 0}, [])
+
+    if canonical_entries:
+        dispatch_counts, dispatch_recent_events = _summarize_subagent_entries(
+            canonical_entries,
+            recent_limit=recent_limit,
+            source_filter="dispatch",
+            include_blocked=True,
+        )
+    else:
+        dispatch_counts, dispatch_recent_events = ({"active": 0, "completed": 0, "failed": 0, "blocked": 0}, [])
+
+    dispatch_note = ""
+    if dispatch_mode == "not_used":
+        dispatch_note = "dispatch engine not used in this run."
+    elif dispatch_mode == "legacy_fallback":
+        dispatch_note = "dispatch counts derived from legacy dispatch log."
+    elif dispatch_mode == "active" and not dispatch_log.exists():
+        dispatch_note = "dispatch counts derived from canonical agent telemetry."
+
+    if not canonical_entries:
+        subagents = {
+            "present": False,
+            "path": str(path.relative_to(project_root)),
+            "counts": {"active": 0, "completed": 0, "failed": 0},
+            "recent_events": [],
+            "telemetry_note": "No sub-agent telemetry found. Use `theworkshop dispatch` or `theworkshop agent-log` when delegating manually.",
+        }
+    else:
+        subagents = {
+            "present": True,
+            "path": str(subagents_path.relative_to(project_root)),
+            "counts": sub_counts,
+            "recent_events": sub_recent_events,
+            "telemetry_note": subagents_note,
+        }
+
+    execution = {}
+    if execution_path.exists():
+        try:
+            payload = json.loads(execution_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                execution = payload
+        except Exception:
+            execution = {}
+
+    dispatch = {
+        "present": dispatch_mode != "not_used" or dispatch_log.exists() or execution_path.exists(),
+        "path": str(dispatch_log.relative_to(project_root)),
+        "execution_path": str(execution_path.relative_to(project_root)),
+        "counts": dispatch_counts,
+        "recent_events": dispatch_recent_events,
+        "execution": execution if isinstance(execution, dict) else {},
+        "mode": dispatch_mode,
+        "telemetry_note": dispatch_note,
     }
+    return subagents, dispatch
 
 
 def normalize_group_members(value: Any) -> list[str]:
@@ -432,7 +706,8 @@ def build_payload(project_root: Path) -> dict:
         jobs_all.extend(ws_jobs)
 
     orchestration = read_orchestration(project_root)
-    subagents = read_subagents(project_root)
+    subagents, dispatch = read_subagent_telemetry(project_root)
+    wi_index = build_work_item_index(workstreams)
     truth_summary = {
         "pass": sum(1 for j in jobs_all if j.get("truth_status") == "pass"),
         "fail": sum(1 for j in jobs_all if j.get("truth_status") == "fail"),
@@ -459,6 +734,29 @@ def build_payload(project_root: Path) -> dict:
     }
 
     tokens_payload = build_token_cost_payload(project_root, "codex")
+    sub_recent_raw = subagents.get("recent_events") if isinstance(subagents.get("recent_events"), list) else []
+    subagents["recent_events"] = [humanize_subagent_event(evt, wi_index) for evt in sub_recent_raw if isinstance(evt, dict)]
+
+    dispatch_recent_raw = dispatch.get("recent_events") if isinstance(dispatch.get("recent_events"), list) else []
+    dispatch["recent_events"] = [humanize_subagent_event(evt, wi_index) for evt in dispatch_recent_raw if isinstance(evt, dict)]
+    dispatch_summary = dispatch.get("execution")
+    summary_obj = dispatch_summary.get("summary") if isinstance(dispatch_summary, dict) else {}
+    dispatch["display_summary"] = humanize_dispatch_summary(summary_obj if isinstance(summary_obj, dict) else {})
+
+    by_wi = tokens_payload.get("by_work_item")
+    if isinstance(by_wi, list):
+        mapped_rows: list[dict[str, Any]] = []
+        for row in by_wi:
+            if not isinstance(row, dict):
+                continue
+            mapped = dict(row)
+            wi_id = str(mapped.get("work_item_id") or "").strip()
+            wi_meta = wi_index.get(wi_id) or {}
+            wi_short = short_wi_id(wi_id) if wi_id else "WI-???"
+            title = str(wi_meta.get("title") or "").strip()
+            mapped["display_work_item"] = f"{title} ({wi_short})" if title else wi_short if wi_id else "Unlinked task"
+            mapped_rows.append(mapped)
+        tokens_payload = {**tokens_payload, "by_work_item": mapped_rows}
 
     gh_enabled = bool(pfm.get("github_enabled"))
     gh_repo = str(pfm.get("github_repo") or "")
@@ -493,6 +791,7 @@ def build_payload(project_root: Path) -> dict:
         "truth_summary": truth_summary,
         "orchestration": orchestration,
         "subagents": subagents,
+        "dispatch": dispatch,
     }
     return payload
 
@@ -535,6 +834,1245 @@ def truth_class(status: str) -> str:
     }.get(str(status or "").strip().lower(), "truth-unknown")
 
 
+def _render_dashboard_css() -> str:
+    return """
+:root {
+  --bg: #f2efe8;
+  --bg-hi: #f9f6f1;
+  --panel: rgba(255, 253, 249, 0.9);
+  --panel-solid: #fffcf8;
+  --ink: #18222c;
+  --muted: #526170;
+  --line: #d7d0c4;
+  --line-strong: #c6bcac;
+  --accent: #0f6b5d;
+  --accent-soft: rgba(15, 107, 93, 0.12);
+  --risk: #a5372f;
+  --risk-soft: rgba(165, 55, 47, 0.14);
+  --planned: #6b7280;
+  --inprogress: #b45f06;
+  --blocked: #b42318;
+  --done: #027a48;
+  --cancelled: #7a1f5c;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; min-height: 100vh; }
+body {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 8%, #efe6d6 0%, transparent 34%),
+    radial-gradient(circle at 88% 2%, #ddebe4 0%, transparent 30%),
+    linear-gradient(rgba(35, 52, 68, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 52, 68, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, var(--bg-hi) 0%, var(--bg) 72%);
+  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px, 100% 100%;
+  padding-bottom: 56px;
+}
+.wrap {
+  max-width: 1340px;
+  margin: 0 auto;
+  padding: 20px 18px 26px;
+}
+h1 { margin: 0; font-size: 34px; letter-spacing: .2px; }
+h2 { margin: 24px 0 10px; font-size: 20px; letter-spacing: .18px; }
+h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: .1px; }
+h4 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+p { margin: 6px 0; }
+ul { margin: 8px 0 0 18px; }
+code {
+  background: #f1ede5;
+  border: 1px solid #e0d8ca;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 12px;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+.muted { color: var(--muted); }
+.card {
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 6px 24px rgba(25, 33, 47, 0.04), inset 0 1px 0 rgba(255,255,255,0.6);
+  animation: cardIn .24s ease-out both;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.monitor {
+  position: sticky;
+  top: 10px;
+  z-index: 25;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 247, 0.86);
+  backdrop-filter: blur(11px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.monitor .group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #f1ede5;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.badge-on { border-color: rgba(15,107,93,0.35); background: rgba(15,107,93,0.10); }
+.badge-off { border-color: rgba(95,107,117,0.35); background: rgba(95,107,117,0.12); }
+.badge-stale {
+  border-color: rgba(180,35,24,0.35);
+  background: rgba(180,35,24,0.10);
+  color: var(--blocked);
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+button, .btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color .18s ease, background-color .18s ease, transform .12s ease, color .18s ease;
+}
+button:hover, .btn:hover { border-color: rgba(15,107,93,0.50); }
+button:active, .btn:active { transform: translateY(1px); }
+button:focus-visible, .btn:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(15,107,93,0.35);
+  outline-offset: 2px;
+}
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.hero .project-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: white;
+  font-size: 12px;
+  line-height: 1.5;
+  vertical-align: middle;
+}
+.st-planned { background: var(--planned); }
+.st-inprogress { background: var(--inprogress); }
+.st-blocked { background: var(--blocked); }
+.st-done { background: var(--done); }
+.st-cancelled { background: var(--cancelled); }
+.truth-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  font-weight: 700;
+}
+.truth-pass { background: rgba(2, 122, 72, 0.14); color: #03543f; }
+.truth-fail { background: rgba(180, 35, 24, 0.14); color: #9a2418; }
+.truth-unknown { background: rgba(95, 107, 117, 0.14); color: #3f4a54; }
+.command-bar {
+  position: sticky;
+  top: 74px;
+  z-index: 20;
+  margin-bottom: 12px;
+}
+.command-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(300px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.query-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 7px 10px;
+}
+.query-wrap input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+}
+.query-wrap .hint {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+.focus-group, .filter-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.focus-btn {
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+.focus-btn.is-active {
+  background: var(--accent);
+  border-color: rgba(15,107,93,0.45);
+  color: #fff;
+}
+.chip {
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chip.is-on {
+  border-color: rgba(15,107,93,0.42);
+  background: var(--accent-soft);
+}
+.chip .chip-count {
+  display: inline-block;
+  min-width: 14px;
+  text-align: right;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 11px;
+}
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.metric h3 { margin-bottom: 6px; font-size: 14px; }
+.metric .value { font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: .2px; }
+.metric .split { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.metric .value.small { font-size: 21px; }
+.metric .value.risk { color: var(--risk); }
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.panel-grid.two-col {
+  grid-template-columns: minmax(430px, 1.6fr) minmax(300px, 1fr);
+}
+.triage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.triage-head .legend {
+  color: var(--muted);
+  font-size: 12px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th, td {
+  text-align: left;
+  padding: 8px 6px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  background: rgba(255,252,247,0.95);
+  backdrop-filter: blur(5px);
+}
+.queue-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.queue-wrap tr[data-target-row] {
+  cursor: pointer;
+}
+.queue-wrap tr[data-target-row]:hover {
+  background: rgba(15, 107, 93, 0.08);
+}
+.flag-risk {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--risk-soft);
+  color: var(--risk);
+  font-weight: 700;
+  font-size: 11px;
+}
+.ws-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+[data-ws-card] {
+  margin-bottom: 10px;
+}
+.ws-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ws-head .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ws-body {
+  margin-top: 10px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.ws-toggle { font-weight: 600; }
+.ws-summary {
+  font-size: 12px;
+  color: var(--muted);
+}
+tr.is-risk td:first-child {
+  border-left: 3px solid rgba(165, 55, 47, 0.55);
+}
+tr.row-focus {
+  animation: rowFocusFlash 1.6s ease-out;
+}
+@keyframes rowFocusFlash {
+  0% { background: rgba(15, 107, 93, 0.2); }
+  100% { background: transparent; }
+}
+.ws-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(95, 107, 117, 0.14);
+  color: #3f4a54;
+}
+.ws-flag.risk {
+  background: var(--risk-soft);
+  color: var(--risk);
+}
+.monitor-list {
+  margin: 6px 0 0 16px;
+}
+.event-list {
+  margin: 8px 0 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.event-list-wrap {
+  max-height: 240px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+[data-event-row] {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 251, 244, 0.85);
+  padding: 8px 10px;
+}
+[data-event-summary] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.event-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.event-pill.info {
+  color: #31506c;
+  background: rgba(49, 80, 108, 0.12);
+  border: 1px solid rgba(49, 80, 108, 0.25);
+}
+.event-pill.warn {
+  color: #9d4f02;
+  background: rgba(180, 95, 6, 0.13);
+  border: 1px solid rgba(180, 95, 6, 0.28);
+}
+.event-pill.error {
+  color: #9b2c24;
+  background: rgba(165, 55, 47, 0.14);
+  border: 1px solid rgba(165, 55, 47, 0.3);
+}
+[data-event-details] {
+  margin-top: 6px;
+}
+[data-event-details] summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+[data-event-raw] {
+  margin-top: 6px;
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8f3ea;
+  padding: 8px;
+  font-size: 11px;
+}
+.live-strip {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  height: 44px;
+  border-top: 1px solid var(--line-strong);
+  background: rgba(255, 251, 245, 0.92);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.live-label {
+  flex: 0 0 auto;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: #16453c;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(15,107,93,0.16), rgba(15,107,93,0.08));
+}
+.live-scroll {
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+.live-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-width: 100%;
+  width: max-content;
+  animation: tickerMove var(--ticker-duration, 42s) linear infinite;
+  height: 100%;
+  will-change: transform;
+}
+.live-track.is-static { animation: none; }
+.live-track:hover { animation-play-state: paused; }
+.live-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 100%;
+  border-right: 1px solid rgba(199, 189, 173, 0.7);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.live-item .src {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #31506c;
+}
+@keyframes tickerMove {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+.kbd {
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--muted);
+  background: #fff;
+}
+@media (max-width: 1120px) {
+  .command-grid {
+    grid-template-columns: 1fr;
+  }
+  .metrics-grid {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+  .monitor {
+    position: static;
+  }
+}
+@media (max-width: 760px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+  .panel-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+"""
+
+
+def _render_dashboard_js() -> str:
+    return """
+// TheWorkshop dashboard runtime: auto-refresh, filtering, triage queue, and keyboard shortcuts.
+(function () {
+  var REFRESH_MS = 5000;
+  var STALE_AFTER_MS = Math.max(5 * 60 * 1000, 2 * REFRESH_MS);
+  var LS_REFRESH = "theworkshop.autorefresh.enabled";
+  var LS_QUERY = "theworkshop.ui.query";
+  var LS_STATUS = "theworkshop.ui.status";
+  var LS_TRUTH = "theworkshop.ui.truth";
+  var LS_FOCUS = "theworkshop.ui.focus";
+  var LS_COLLAPSED = "theworkshop.ui.collapsed_ws";
+  var SS_SCROLL_KEY = "theworkshop.autorefresh.scrollY";
+  var DEFAULT_STATUS = ["planned", "in_progress", "blocked", "done", "cancelled"];
+  var DEFAULT_TRUTH = ["pass", "fail", "unknown"];
+
+  function $(id) { return document.getElementById(id); }
+  function qsa(selector) { return Array.prototype.slice.call(document.querySelectorAll(selector)); }
+  function lsGet(key, fallback) {
+    try { return window.localStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+  }
+  function lsSet(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (e) {}
+  }
+  function lsGetList(key, fallback) {
+    var raw = lsGet(key, "");
+    if (!raw) return fallback.slice();
+    try {
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(function (v) { return String(v); });
+    } catch (e) {}
+    return fallback.slice();
+  }
+  function lsSetList(key, list) {
+    try { window.localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+  }
+  function ssGet(key, fallback) {
+    try { return window.sessionStorage.getItem(key) || fallback; } catch (e) { return fallback; }
+  }
+  function ssSet(key, value) {
+    try { window.sessionStorage.setItem(key, value); } catch (e) {}
+  }
+  function setText(el, text) { if (el) el.textContent = text; }
+  function show(el, on) { if (el) el.style.display = on ? "" : "none"; }
+  function escHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function parseNum(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : 0;
+  }
+  function saveScroll() {
+    try { ssSet(SS_SCROLL_KEY, String(window.scrollY || 0)); } catch (e) {}
+  }
+  function restoreScroll() {
+    var y = parseInt(ssGet(SS_SCROLL_KEY, "0"), 10);
+    if (!isNaN(y) && y > 0) window.scrollTo(0, y);
+  }
+
+  var queryEl = $("twQuery");
+  var queueBody = $("twQueueBody");
+  var queueTable = $("twQueueTable");
+  var eventRows = qsa("[data-event-row]");
+  var focusButtons = qsa("[data-focus-btn]");
+  var statusChips = qsa("[data-status-chip]");
+  var truthChips = qsa("[data-truth-chip]");
+  var collapseAllBtn = $("twCollapseAll");
+  var expandAllBtn = $("twExpandAll");
+  var visibleJobsEl = $("twVisibleJobs");
+  var atRiskJobsEl = $("twAtRiskJobs");
+  var activeJobsEl = $("twActiveJobs");
+
+  var rowModels = qsa("[data-wi-row]").map(function (row) {
+    var rewardScore = parseNum(row.getAttribute("data-reward-score"));
+    var rewardTarget = parseNum(row.getAttribute("data-reward-target"));
+    var rewardGap = Math.max(0, rewardTarget - rewardScore);
+    var model = {
+      row: row,
+      anchor: String(row.id || ""),
+      wiId: String(row.getAttribute("data-wi-id") || ""),
+      title: String(row.getAttribute("data-title") || ""),
+      wsId: String(row.getAttribute("data-ws-id") || ""),
+      wsTitle: String(row.getAttribute("data-ws-title") || ""),
+      status: String(row.getAttribute("data-status") || "planned"),
+      truth: String(row.getAttribute("data-truth") || "unknown"),
+      nextAction: String(row.getAttribute("data-next-action") || ""),
+      loopStatus: String(row.getAttribute("data-loop-status") || ""),
+      rewardScore: rewardScore,
+      rewardTarget: rewardTarget,
+      rewardGap: rewardGap
+    };
+    model.search = (model.wiId + " " + model.title + " " + model.nextAction + " " + model.wsId + " " + model.wsTitle).toLowerCase();
+    return model;
+  });
+
+  var wsCards = qsa("[data-ws-card]").map(function (card) {
+    return {
+      card: card,
+      wsId: String(card.getAttribute("data-ws-id") || ""),
+      body: card.querySelector("[data-ws-body]"),
+      toggle: card.querySelector("[data-ws-toggle]"),
+      visibleCount: card.querySelector("[data-visible-count]")
+    };
+  });
+  var wsById = {};
+  wsCards.forEach(function (entry) { wsById[entry.wsId] = entry; });
+
+  var state = {
+    query: String(lsGet(LS_QUERY, "") || ""),
+    focus: String(lsGet(LS_FOCUS, "all") || "all"),
+    status: new Set(lsGetList(LS_STATUS, DEFAULT_STATUS)),
+    truth: new Set(lsGetList(LS_TRUTH, DEFAULT_TRUTH)),
+    collapsed: new Set(lsGetList(LS_COLLAPSED, []))
+  };
+  if (!state.status.size) DEFAULT_STATUS.forEach(function (s) { state.status.add(s); });
+  if (!state.truth.size) DEFAULT_TRUTH.forEach(function (s) { state.truth.add(s); });
+
+  if (queryEl) queryEl.value = state.query;
+
+  function persistUiState() {
+    lsSet(LS_QUERY, state.query);
+    lsSet(LS_FOCUS, state.focus);
+    lsSetList(LS_STATUS, Array.from(state.status));
+    lsSetList(LS_TRUTH, Array.from(state.truth));
+    lsSetList(LS_COLLAPSED, Array.from(state.collapsed));
+  }
+
+  function renderFocusButtons() {
+    focusButtons.forEach(function (btn) {
+      var mode = String(btn.getAttribute("data-focus-btn") || "");
+      btn.classList.toggle("is-active", mode === state.focus);
+    });
+  }
+
+  function renderFilterButtons() {
+    statusChips.forEach(function (btn) {
+      var value = String(btn.getAttribute("data-status-chip") || "");
+      btn.classList.toggle("is-on", state.status.has(value));
+    });
+    truthChips.forEach(function (btn) {
+      var value = String(btn.getAttribute("data-truth-chip") || "");
+      btn.classList.toggle("is-on", state.truth.has(value));
+    });
+  }
+
+  function applyWsCollapse() {
+    wsCards.forEach(function (entry) {
+      var isCollapsed = state.collapsed.has(entry.wsId);
+      if (entry.body) entry.body.hidden = isCollapsed;
+      if (entry.toggle) entry.toggle.textContent = isCollapsed ? "Expand" : "Collapse";
+    });
+  }
+
+  function rowRiskScore(meta) {
+    var score = 0;
+    if (meta.status === "blocked") score += 100;
+    if (meta.truth === "fail") score += 80;
+    if (meta.status === "in_progress") score += 40;
+    score += meta.rewardGap;
+    return score;
+  }
+
+  function focusMatch(meta) {
+    if (state.focus === "all") return true;
+    if (state.focus === "at_risk") return meta.status === "blocked" || meta.truth === "fail" || meta.rewardGap > 0;
+    if (state.focus === "active") return meta.status === "in_progress";
+    if (state.focus === "blocked") return meta.status === "blocked";
+    if (state.focus === "done") return meta.status === "done";
+    return true;
+  }
+
+  function updateChipCount(kind, key, count) {
+    var selector = '[data-chip-count="' + kind + ':' + key + '"]';
+    var node = document.querySelector(selector);
+    if (node) node.textContent = String(count);
+  }
+
+  function renderQueue(items) {
+    if (!queueBody) return;
+    if (!items.length) {
+      queueBody.innerHTML = '<tr><td colspan="6" class="muted">(no jobs match current filters)</td></tr>';
+      return;
+    }
+    var sorted = items.slice().sort(function (a, b) {
+      var riskDelta = rowRiskScore(b) - rowRiskScore(a);
+      if (riskDelta !== 0) return riskDelta;
+      return a.wiId.localeCompare(b.wiId);
+    });
+    var html = sorted.map(function (meta) {
+      var statusPill = '<span class="pill st-' + (meta.status === "in_progress" ? "inprogress" : meta.status) + '">' + escHtml(meta.status) + '</span>';
+      var truthPill = '<span class="truth-pill truth-' + escHtml(meta.truth) + '">' + escHtml(meta.truth) + '</span>';
+      var gap = meta.rewardGap > 0 ? '<span class="flag-risk">+' + meta.rewardGap + '</span>' : '0';
+      var risk = rowRiskScore(meta);
+      return (
+        '<tr data-target-row="' + escHtml(meta.anchor) + '">' +
+        '<td><code>' + escHtml(meta.wiId) + '</code></td>' +
+        '<td>' + statusPill + '</td>' +
+        '<td>' + truthPill + '</td>' +
+        '<td>' + gap + '</td>' +
+        '<td>' + escHtml(meta.nextAction || "(none)") + '</td>' +
+        '<td class="mono">' + escHtml(meta.wsId) + ' · risk ' + risk + '</td>' +
+        '</tr>'
+      );
+    }).join("");
+    queueBody.innerHTML = html;
+  }
+
+  function applyEventSearch(query) {
+    eventRows.forEach(function (row) {
+      var hay = String(row.getAttribute("data-event-search") || "").toLowerCase();
+      if (!query || hay.indexOf(query) >= 0) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
+    });
+  }
+
+  function applyFilters() {
+    var query = state.query.trim().toLowerCase();
+    var statusCounts = { planned: 0, in_progress: 0, blocked: 0, done: 0, cancelled: 0 };
+    var truthCounts = { pass: 0, fail: 0, unknown: 0 };
+    var wsVisible = {};
+    var visible = [];
+    var activeCount = 0;
+    var riskCount = 0;
+
+    rowModels.forEach(function (meta) {
+      if ((query && meta.search.indexOf(query) === -1) || !focusMatch(meta)) {
+        meta.row.style.display = "none";
+        return;
+      }
+      if (statusCounts.hasOwnProperty(meta.status)) statusCounts[meta.status] += 1;
+      if (truthCounts.hasOwnProperty(meta.truth)) truthCounts[meta.truth] += 1;
+
+      if (!state.status.has(meta.status) || !state.truth.has(meta.truth)) {
+        meta.row.style.display = "none";
+        return;
+      }
+      meta.row.style.display = "";
+      if (meta.status === "in_progress") activeCount += 1;
+      if (meta.status === "blocked" || meta.truth === "fail" || meta.rewardGap > 0) riskCount += 1;
+      meta.row.classList.toggle("is-risk", meta.status === "blocked" || meta.truth === "fail" || meta.rewardGap > 0);
+      wsVisible[meta.wsId] = (wsVisible[meta.wsId] || 0) + 1;
+      visible.push(meta);
+    });
+
+    wsCards.forEach(function (entry) {
+      var count = wsVisible[entry.wsId] || 0;
+      if (entry.visibleCount) entry.visibleCount.textContent = String(count);
+      entry.card.style.display = count > 0 ? "" : "none";
+    });
+
+    DEFAULT_STATUS.forEach(function (s) { updateChipCount("status", s, statusCounts[s] || 0); });
+    DEFAULT_TRUTH.forEach(function (t) { updateChipCount("truth", t, truthCounts[t] || 0); });
+    if (visibleJobsEl) visibleJobsEl.textContent = String(visible.length);
+    if (activeJobsEl) activeJobsEl.textContent = String(activeCount);
+    if (atRiskJobsEl) atRiskJobsEl.textContent = String(riskCount);
+
+    applyEventSearch(query);
+    renderQueue(visible);
+    renderFilterButtons();
+    renderFocusButtons();
+  }
+
+  function setFocus(mode) {
+    state.focus = mode;
+    persistUiState();
+    applyFilters();
+  }
+
+  focusButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      setFocus(String(btn.getAttribute("data-focus-btn") || "all"));
+    });
+  });
+
+  statusChips.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var key = String(btn.getAttribute("data-status-chip") || "");
+      if (!key) return;
+      if (state.status.has(key)) {
+        if (state.status.size <= 1) return;
+        state.status.delete(key);
+      } else {
+        state.status.add(key);
+      }
+      persistUiState();
+      applyFilters();
+    });
+  });
+
+  truthChips.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var key = String(btn.getAttribute("data-truth-chip") || "");
+      if (!key) return;
+      if (state.truth.has(key)) {
+        if (state.truth.size <= 1) return;
+        state.truth.delete(key);
+      } else {
+        state.truth.add(key);
+      }
+      persistUiState();
+      applyFilters();
+    });
+  });
+
+  if (queryEl) {
+    queryEl.addEventListener("input", function () {
+      state.query = queryEl.value || "";
+      persistUiState();
+      applyFilters();
+    });
+  }
+
+  wsCards.forEach(function (entry) {
+    if (!entry.toggle) return;
+    entry.toggle.addEventListener("click", function () {
+      if (state.collapsed.has(entry.wsId)) state.collapsed.delete(entry.wsId);
+      else state.collapsed.add(entry.wsId);
+      persistUiState();
+      applyWsCollapse();
+    });
+  });
+
+  if (collapseAllBtn) {
+    collapseAllBtn.addEventListener("click", function () {
+      wsCards.forEach(function (entry) { state.collapsed.add(entry.wsId); });
+      persistUiState();
+      applyWsCollapse();
+    });
+  }
+
+  if (expandAllBtn) {
+    expandAllBtn.addEventListener("click", function () {
+      state.collapsed.clear();
+      persistUiState();
+      applyWsCollapse();
+    });
+  }
+
+  if (queueBody) {
+    queueBody.addEventListener("click", function (evt) {
+      var tr = evt.target && evt.target.closest ? evt.target.closest("tr[data-target-row]") : null;
+      if (!tr) return;
+      var targetId = String(tr.getAttribute("data-target-row") || "");
+      if (!targetId) return;
+      var target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("row-focus");
+      window.setTimeout(function () { target.classList.remove("row-focus"); }, 1600);
+    });
+  }
+
+  document.addEventListener("keydown", function (evt) {
+    var key = String(evt.key || "");
+    var active = document.activeElement;
+    var tag = active && active.tagName ? String(active.tagName).toLowerCase() : "";
+    var typing = tag === "input" || tag === "textarea" || (active && active.isContentEditable);
+    if (key === "/" && !typing) {
+      evt.preventDefault();
+      if (queryEl) {
+        queryEl.focus();
+        queryEl.select();
+      }
+      return;
+    }
+    if (key === "Escape") {
+      state.query = "";
+      state.focus = "all";
+      state.status = new Set(DEFAULT_STATUS);
+      state.truth = new Set(DEFAULT_TRUTH);
+      if (queryEl) queryEl.value = "";
+      persistUiState();
+      applyFilters();
+      return;
+    }
+    if (typing) return;
+    var lower = key.toLowerCase();
+    if (lower === "a") setFocus("all");
+    else if (lower === "r") setFocus("at_risk");
+    else if (lower === "i") setFocus("active");
+    else if (lower === "b") setFocus("blocked");
+    else if (lower === "d") setFocus("done");
+  });
+
+  var enabled = lsGet(LS_REFRESH, "1") !== "0";
+  var nextAt = Date.now() + REFRESH_MS;
+  var genAtStr = document.documentElement.getAttribute("data-generated-at") || "";
+  var genAtMs = Date.parse(genAtStr);
+  var lastGeneratedAt = genAtStr;
+  var sse = null;
+  var sseConnected = false;
+  var sseEnabled = (window.location.protocol || "").indexOf("http") === 0;
+
+  var elToggle = $("twRefreshToggle");
+  var elNow = $("twRefreshNow");
+  var elCountdown = $("twRefreshCountdown");
+  var elStatus = $("twRefreshStatus");
+  var elStale = $("twStaleBadge");
+  var elAge = $("twDataAge");
+
+  function reloadNow() {
+    saveScroll();
+    var base = window.location.href.split("?")[0];
+    window.location.replace(base + "?t=" + Date.now());
+  }
+
+  function connectSSE() {
+    if (!sseEnabled || typeof window.EventSource === "undefined") {
+      return;
+    }
+    try {
+      sse = new window.EventSource("/events");
+    } catch (e) {
+      sse = null;
+      return;
+    }
+    sse.onopen = function () {
+      sseConnected = true;
+      renderRefresh();
+    };
+    sse.onerror = function () {
+      sseConnected = false;
+      renderRefresh();
+    };
+    sse.onmessage = function (evt) {
+      try {
+        var payload = JSON.parse(evt.data || "{}");
+        var incoming = String(payload.generated_at || "");
+        if (incoming && incoming !== lastGeneratedAt) {
+          lastGeneratedAt = incoming;
+          reloadNow();
+        }
+      } catch (e) {}
+    };
+  }
+
+  function fmtAge(seconds) {
+    var s = Math.max(0, Math.floor(seconds));
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    if (m <= 0) return s + "s";
+    return m + "m " + r + "s";
+  }
+
+  function renderRefresh() {
+    if (elStatus) {
+      var stateLabel = enabled ? "ON" : "PAUSED";
+      if (enabled && sseEnabled && sseConnected) stateLabel = "LIVE";
+      elStatus.textContent = stateLabel;
+      elStatus.className = enabled ? "badge badge-on" : "badge badge-off";
+    }
+    if (elToggle) elToggle.textContent = enabled ? "Pause" : "Resume";
+  }
+
+  function tick() {
+    var now = Date.now();
+    if (!isNaN(genAtMs)) setText(elAge, fmtAge((now - genAtMs) / 1000));
+    if (!isNaN(genAtMs) && (now - genAtMs) > STALE_AFTER_MS) show(elStale, true);
+    else show(elStale, false);
+
+    if (!enabled) {
+      setText(elCountdown, "paused");
+      return;
+    }
+    if (sseEnabled && sseConnected) {
+      setText(elCountdown, "live");
+      return;
+    }
+    var remaining = Math.max(0, nextAt - now);
+    setText(elCountdown, Math.ceil(remaining / 1000) + "s");
+    if (now >= nextAt) reloadNow();
+  }
+
+  if (elToggle) {
+    elToggle.addEventListener("click", function () {
+      enabled = !enabled;
+      lsSet(LS_REFRESH, enabled ? "1" : "0");
+      nextAt = Date.now() + REFRESH_MS;
+      renderRefresh();
+      tick();
+    });
+  }
+  if (elNow) {
+    elNow.addEventListener("click", function () {
+      reloadNow();
+    });
+  }
+
+  applyWsCollapse();
+  applyFilters();
+  connectSSE();
+  renderRefresh();
+  tick();
+  restoreScroll();
+  window.addEventListener("beforeunload", function () {
+    saveScroll();
+    if (sse) {
+      try { sse.close(); } catch (e) {}
+    }
+  });
+  window.setInterval(tick, 250);
+})();
+"""
+
+
+def _render_dashboard_layout(content: dict[str, str]) -> str:
+    return f"""
+<div class="wrap">
+  <div id="twMonitor" class="monitor">
+    <div class="group">
+      <span class="muted"><b>Auto-refresh</b></span>
+      <span id="twRefreshStatus" class="badge badge-on">ON</span>
+      <span class="muted">next in <b id="twRefreshCountdown">5s</b></span>
+      <button id="twRefreshToggle" type="button">Pause</button>
+      <button id="twRefreshNow" type="button">Refresh now</button>
+    </div>
+    <div class="group">
+      <span id="twStaleBadge" class="badge badge-stale" style="display:none;">STALE</span>
+      <span class="muted">data age <b id="twDataAge">0s</b></span>
+      <span class="muted">generated <code id="twGeneratedAt">{content["generated_at"]}</code></span>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div>
+      <h1>TheWorkshop Dashboard</h1>
+      <div class="project-line muted">
+        <b>{content["project_id"]}</b>
+        <span>{content["project_title"]}</span>
+        <span class="pill {content["project_status_class"]}">{content["project_status"]}</span>
+        <span>generated {content["generated_at"]}</span>
+      </div>
+    </div>
+    <div class="muted">
+      <div>Agreement: <b>{content["agreement_status"]}</b></div>
+      <div>Elapsed: <b>{content["project_elapsed"]}</b></div>
+    </div>
+  </section>
+
+  <section class="card command-bar">
+    <div class="command-grid">
+      <div class="query-wrap">
+        <span class="mono">query:</span>
+        <input id="twQuery" type="text" placeholder="Filter by WI, title, next action, workstream" aria-label="Filter jobs">
+        <span class="hint">/</span>
+      </div>
+      <div class="focus-group">
+        <button id="twFocusAll" class="focus-btn is-active" data-focus-btn="all" type="button">All <span class="kbd">A</span></button>
+        <button id="twFocusAtRisk" class="focus-btn" data-focus-btn="at_risk" type="button">At Risk <span class="kbd">R</span></button>
+        <button id="twFocusActive" class="focus-btn" data-focus-btn="active" type="button">Active <span class="kbd">I</span></button>
+        <button id="twFocusBlocked" class="focus-btn" data-focus-btn="blocked" type="button">Blocked <span class="kbd">B</span></button>
+        <button id="twFocusDone" class="focus-btn" data-focus-btn="done" type="button">Done <span class="kbd">D</span></button>
+      </div>
+      <div class="muted mono">Esc resets filters</div>
+    </div>
+    <div class="command-grid" style="margin-top:10px;">
+      <div class="filter-group" id="twStatusFilters" aria-label="Status filters">
+        <span class="muted"><b>Status</b></span>
+        {content["status_filters_html"]}
+      </div>
+      <div class="filter-group" id="twTruthFilters" aria-label="Truth filters">
+        <span class="muted"><b>Truth</b></span>
+        {content["truth_filters_html"]}
+      </div>
+      <div class="muted">
+        visible jobs <b id="twVisibleJobs">{content["jobs_total"]}</b> · active <b id="twActiveJobs">{content["jobs_in_progress"]}</b> · at risk <b id="twAtRiskJobs">{content["jobs_at_risk"]}</b>
+      </div>
+    </div>
+  </section>
+
+  <section class="metrics-grid">
+    <section class="card metric"><h3>Workstreams</h3><div class="value">{content["workstreams_total"]}</div><div class="split">Waves: {content["waves_count"]}</div></section>
+    <section class="card metric"><h3>Jobs</h3><div class="value">{content["jobs_total"]}</div><div class="split">done {content["jobs_done"]} · cancelled {content["jobs_cancelled"]}</div></section>
+    <section class="card metric"><h3>In Progress</h3><div class="value">{content["jobs_in_progress"]}</div><div class="split">blocked {content["jobs_blocked"]} · planned {content["jobs_planned"]}</div></section>
+    <section class="card metric"><h3>Truth Status</h3><div class="value small">pass {content["truth_pass"]} / fail {content["truth_fail"]}</div><div class="split">unknown {content["truth_unknown"]}</div></section>
+    <section class="card metric"><h3>Stale Dependencies</h3><div class="value risk">{content["stale_dependencies"]}</div><div class="split">from orchestration/invalidation</div></section>
+    <section class="card metric"><h3>Commands / Failures</h3><div class="value small">{content["commands"]} / {content["failures"]}</div><div class="split">avg duration {content["avg_duration_sec"]}s</div></section>
+    <section class="card metric"><h3>Sub-Agents</h3><div class="value small">{content["subagents_line"]}</div><div class="split">Dispatch: {content["dispatch_line"]}</div></section>
+    <section class="card metric"><h3>Loop Jobs</h3><div class="value small">enabled {content["loops_enabled"]}</div><div class="split">active {content["loops_active"]} · blocked {content["loops_blocked"]} · completed {content["loops_completed"]}</div></section>
+    <section class="card metric"><h3>Estimated Tokens</h3><div class="value small">{content["estimated_tokens"]}</div><div class="split">{content["estimated_chars"]} chars proxy</div></section>
+    <section class="card metric"><h3>Token Source</h3><div class="value small">{content["token_source_label"]}</div><div class="split">session {content["session_tokens"]} · last turn {content["last_turn_tokens"]}</div></section>
+    <section class="card metric"><h3>Session Cost</h3><div class="value small">{content["billed_session_cost_label"]} billed</div><div class="split">API-equivalent: {content["api_equivalent_session_cost_label"]}<br>plan: {content["billing_plan_label"]}</div></section>
+    <section class="card metric"><h3>Project Cost (Delta)</h3><div class="value small">{content["billed_project_cost_label"]} billed delta</div><div class="split">API-equivalent delta: {content["api_equivalent_project_cost_label"]}<br>baseline {content["baseline_tokens"]} · delta {content["delta_tokens"]}</div></section>
+  </section>
+
+  {content["waves_block"]}
+
+  <section class="panel-grid two-col">
+    <section class="card">
+      <div class="triage-head">
+        <div>
+          <h3>Triage Queue</h3>
+          <p class="legend">Sorted by deterministic risk: blocked +100, truth fail +80, in_progress +40, reward gap +gap</p>
+        </div>
+      </div>
+      <div class="queue-wrap">
+        <table id="twQueueTable">
+          <thead><tr><th>Work Item</th><th>Status</th><th>Truth</th><th>Reward Gap</th><th>Next Action</th><th>Workstream / Risk</th></tr></thead>
+          <tbody id="twQueueBody"><tr><td colspan="6" class="muted">(initializing)</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <h3>Monitor Health</h3>
+      <p>projection seq: <b>{content["projection_seq"]}</b></p>
+      <p class="muted">warnings: {content["projection_warning_count"]}</p>
+      <ul class="monitor-list">{content["monitor_warning_lines"]}</ul>
+      <p>monitor status: <b>{content["monitor_status"]}</b></p>
+      <p class="muted">policy: {content["monitor_policy"]} · watch pid: {content["monitor_watch_pid"]} ({content["monitor_watch_state"]})</p>
+      <p class="muted">cost source: {content["cost_source_label"]} ({content["cost_confidence"]}) · billing confidence: {content["billing_confidence"]}</p>
+      <p class="muted">model: {content["rate_model_key"]} · {content["rate_resolution"]}</p>
+      <p class="muted">{content["billing_reason"]}</p>
+      <p>GitHub Sync: <b>{content["github_sync_state"]}</b></p>
+      <p class="muted">{content["github_repo"]}</p>
+    </section>
+  </section>
+
+  <section class="panel-grid">
+    <section class="card">
+      <h3>Orchestration</h3>
+      <p class="muted">source: {content["orchestration_path"]}</p>
+      <p><b>Parallel Groups</b></p>
+      {content["groups_block"]}
+      <p><b>Critical Path</b></p>
+      {content["critical_path_block"]}
+    </section>
+    <section class="card">
+      <h3>Sub-Agents</h3>
+      <p>{content["subagents_line"]}</p>
+      <p class="muted">source: {content["subagents_path"]}</p>
+      <p class="muted">{content["subagents_note"]}</p>
+      <p><b>Recent Events</b></p>
+      <div class="event-list-wrap">
+        {content["recent_events_block"]}
+      </div>
+    </section>
+    <section class="card">
+      <h3>Dispatch Engine</h3>
+      <p>{content["dispatch_line"]}</p>
+      <p class="muted">{content["dispatch_note"]}</p>
+      <p class="muted">source: {content["dispatch_path"]}</p>
+      <p class="muted">execution: {content["dispatch_execution_path"]}</p>
+      {content["dispatch_summary_block"]}
+    </section>
+  </section>
+
+  <section class="panel-grid">
+    <section class="card">
+      <h3>{content["spend_table_title"]}</h3>
+      <p class="muted">{content["rate_resolution"]}</p>
+      <p class="muted">{content["billing_reason"]}</p>
+      <table>
+        <thead><tr><th>Task</th><th>Estimated Cost</th><th>Weight</th><th>Tokens Allocated</th></tr></thead>
+        <tbody>{content["wi_spend_rows_html"]}</tbody>
+      </table>
+    </section>
+  </section>
+
+  <h2>Workstream Explorer</h2>
+  <div class="ws-controls">
+    <button id="twCollapseAll" type="button">Collapse all</button>
+    <button id="twExpandAll" type="button">Expand all</button>
+  </div>
+  {content["ws_cards_html"]}
+
+  <section class="card">
+    <h3>Paths</h3>
+    <ul>
+      <li><code>outputs/dashboard.json</code></li>
+      <li><code>outputs/dashboard.md</code></li>
+      <li><code>outputs/dashboard.html</code></li>
+    </ul>
+  </section>
+</div>
+
+<div id="twLiveStrip" class="live-strip">
+  <span class="live-label">Live Activity</span>
+  <div class="live-scroll">
+    <div class="live-track{content["ticker_track_class"]}" style="--ticker-duration:{content["ticker_duration"]}s;">{content["ticker_items_html"]}</div>
+  </div>
+</div>
+"""
+
+
 def render_html(payload: dict) -> str:
     proj = payload["project"]
     stats = payload["stats"]
@@ -545,76 +2083,16 @@ def render_html(payload: dict) -> str:
     truth = payload.get("truth_summary") or {}
     orchestration = payload.get("orchestration") or {}
     subagents = payload.get("subagents") or {}
+    dispatch = payload.get("dispatch") or {}
+    projection_seq = int(payload.get("projection_seq") or 0)
+    projection_warnings = payload.get("projection_warnings") if isinstance(payload.get("projection_warnings"), list) else []
+    monitor_state = payload.get("monitor_state") if isinstance(payload.get("monitor_state"), dict) else {}
+    monitor_status = str(monitor_state.get("status") or "unknown")
+    monitor_policy = str(monitor_state.get("policy") or "always")
+    monitor_watch_alive = bool(monitor_state.get("watch_alive"))
+    monitor_watch_pid = int(monitor_state.get("watch_pid") or 0)
     sub_counts = (subagents.get("counts") or {}) if isinstance(subagents, dict) else {}
-
-    ws_cards = []
-    for w in ws:
-        rows = []
-        for j in w["jobs"]:
-            truth_status = str(j.get("truth_status") or "unknown")
-            truth_snippet = str(j.get("truth_last_failure_snippet") or "")
-            truth_text = f"<span class='truth-pill {truth_class(truth_status)}'>{html_escape(truth_status)}</span>"
-            if truth_snippet:
-                truth_text += f"<div class='muted'>{html_escape(truth_snippet)}</div>"
-
-            loop_enabled = "enabled" if bool(j.get("loop_enabled")) else "disabled"
-            loop_status = str(j.get("loop_status") or "idle")
-            loop_state_class = loop_status_class(loop_status)
-            loop_mode = str(j.get("loop_mode") or "max_iterations")
-            loop_attempts = int(j.get("loop_last_attempt") or 0)
-            loop_max = int(j.get("loop_max_iterations") or 0)
-            loop_stop_reason = str(j.get("loop_stop_reason") or "n/a")
-            loop_target = str(j.get("loop_target_promise") or "")
-            loop_target_display = f"target={html_escape(loop_target)}" if loop_target else "target=<none>"
-
-            rows.append(
-                "<tr>"
-                f"<td>{html_escape(j['work_item_id'])}</td>"
-                f"<td>{html_escape(j['title'])}</td>"
-                f"<td><span class='pill {status_class(j['status'])}'>{html_escape(j['status'])}</span></td>"
-                f"<td>{html_escape(j['wave_id'])}</td>"
-                f"<td>{html_escape(', '.join(j['depends_on']))}</td>"
-                f"<td>{truth_text}</td>"
-                f"<td>{loop_enabled}</td>"
-                f"<td><span class='pill {loop_state_class}'>{html_escape(loop_status)}</span></td>"
-                f"<td>{html_escape(loop_mode)}</td>"
-                f"<td>{loop_max}</td>"
-                f"<td>{loop_attempts}</td>"
-                f"<td>{loop_target_display}</td>"
-                f"<td>{html_escape(loop_stop_reason)}</td>"
-                f"<td>{j['reward_score']}/{j['reward_target']}</td>"
-                f"<td>{html_escape(j['reward_next_action'])}</td>"
-                "</tr>"
-            )
-        if not rows:
-            rows = ["<tr><td colspan='14' class='muted'>(no jobs)</td></tr>"]
-        ws_cards.append(
-            "<section class='card'>"
-            f"<h3>{html_escape(w['id'])}: {html_escape(w['title'])} "
-            f"<span class='pill {status_class(w['status'])}'>{html_escape(w['status'])}</span></h3>"
-            f"<p class='muted'>Depends on: {html_escape(', '.join(w['depends_on'])) or '(none)'}</p>"
-            "<table>"
-            "<thead><tr><th>WI</th><th>Title</th><th>Status</th><th>Wave</th><th>Depends On</th><th>Truth</th>"
-            "<th>Loop</th><th>Loop Status</th><th>Loop Mode</th><th>Loop Max</th><th>Loop Attempts</th><th>Loop Target</th><th>Loop Stop</th><th>Reward</th><th>Next Action</th></tr></thead>"
-            "<tbody>"
-            + "".join(rows)
-            + "</tbody></table></section>"
-        )
-
-    waves_block = ""
-    waves = proj.get("waves", []) or []
-    if waves:
-        items = []
-        for w in waves:
-            if isinstance(w, dict):
-                wid = w.get("id", "")
-                title = w.get("title", "")
-                start = w.get("start", "")
-                end = w.get("end", "")
-                items.append(f"<li><b>{html_escape(wid)}</b> {html_escape(title)} ({html_escape(start)} -> {html_escape(end)})</li>")
-            else:
-                items.append(f"<li>{html_escape(str(w))}</li>")
-        waves_block = "<section class='card'><h3>Waves</h3><ul>" + "".join(items) + "</ul></section>"
+    dispatch_counts = (dispatch.get("counts") or {}) if isinstance(dispatch, dict) else {}
 
     def fmt_usd(value: Any) -> str:
         try:
@@ -648,22 +2126,308 @@ def render_html(payload: dict) -> str:
     billed_project_cost_label = fmt_usd(toks.get("billed_project_cost_usd"))
     api_equivalent_session_cost_label = fmt_usd(toks.get("api_equivalent_session_cost_usd"))
     api_equivalent_project_cost_label = fmt_usd(toks.get("api_equivalent_project_cost_usd"))
-    billing_reason = str(toks.get("billing_reason") or "")
-    billing_confidence = str(toks.get("billing_confidence") or "low")
-    rate_model_key = str(toks.get("rate_model_key") or "")
-    rate_resolution = str(toks.get("rate_resolution") or "")
+    billing_reason = html_escape(str(toks.get("billing_reason") or ""))
+    billing_confidence = html_escape(str(toks.get("billing_confidence") or "low"))
+    rate_model_key = html_escape(str(toks.get("rate_model_key") or "n/a"))
+    rate_resolution = html_escape(str(toks.get("rate_resolution") or "rate resolution unavailable"))
+
+    truth_pass = int(truth.get("pass") or 0)
+    truth_fail = int(truth.get("fail") or 0)
+    truth_unknown = int(truth.get("unknown") or 0)
+    stale_dependencies = int(truth.get("stale_dependency_count") or 0)
+    sub_active = int(sub_counts.get("active") or 0)
+    sub_completed = int(sub_counts.get("completed") or 0)
+    sub_failed = int(sub_counts.get("failed") or 0)
+    dispatch_active = int(dispatch_counts.get("active") or 0)
+    dispatch_completed = int(dispatch_counts.get("completed") or 0)
+    dispatch_failed = int(dispatch_counts.get("failed") or 0)
+    dispatch_blocked = int(dispatch_counts.get("blocked") or 0)
+    dispatch_mode = str(dispatch.get("mode") or "not_used")
+    dispatch_note = str(dispatch.get("telemetry_note") or "").strip()
+    if dispatch_mode == "not_used":
+        dispatch_line = "not used in this run"
+    else:
+        dispatch_line = (
+            f"active {dispatch_active} | completed {dispatch_completed} | "
+            f"failed {dispatch_failed} | blocked {dispatch_blocked}"
+        )
+
+    monitor_warning_lines = (
+        "".join(f"<li>{html_escape(str(item))}</li>" for item in projection_warnings)
+        if projection_warnings
+        else "<li class='muted'>(none)</li>"
+    )
+
+    status_filter_keys = ["planned", "in_progress", "blocked", "done", "cancelled"]
+    status_filters_html = "".join(
+        "<button type='button' class='chip is-on' data-status-chip='{key}'>"
+        "{label} <span class='chip-count' data-chip-count='status:{key}'>{count}</span></button>".format(
+            key=html_escape(key),
+            label=html_escape(key),
+            count=int(stats["jobs_status"].get(key) or 0),
+        )
+        for key in status_filter_keys
+    )
+    truth_filters_html = "".join(
+        "<button type='button' class='chip is-on' data-truth-chip='{key}'>"
+        "{label} <span class='chip-count' data-chip-count='truth:{key}'>{count}</span></button>".format(
+            key=html_escape(key),
+            label=html_escape(key),
+            count=truth_pass if key == "pass" else truth_fail if key == "fail" else truth_unknown,
+        )
+        for key in ["pass", "fail", "unknown"]
+    )
+
+    ws_cards: list[str] = []
+    for w in ws:
+        ws_id = str(w.get("id") or "")
+        ws_title = str(w.get("title") or "")
+        ws_status = str(w.get("status") or "planned")
+        ws_depends = str(", ".join(w.get("depends_on") or [])) or "(none)"
+        rows: list[str] = []
+        for j in w["jobs"]:
+            wi_id = str(j.get("work_item_id") or "")
+            wi_title = str(j.get("title") or "")
+            status = str(j.get("status") or "planned")
+            truth_status = str(j.get("truth_status") or "unknown")
+            truth_snippet = str(j.get("truth_last_failure_snippet") or "")
+            loop_status = str(j.get("loop_status") or "idle")
+            loop_mode = str(j.get("loop_mode") or "max_iterations")
+            loop_target = str(j.get("loop_target_promise") or "")
+            loop_target_display = f"target={html_escape(loop_target)}" if loop_target else "target=<none>"
+            loop_enabled = "enabled" if bool(j.get("loop_enabled")) else "disabled"
+            loop_max = int(j.get("loop_max_iterations") or 0)
+            loop_attempts = int(j.get("loop_last_attempt") or 0)
+            loop_stop_reason = str(j.get("loop_stop_reason") or "n/a")
+            reward_score = int(j.get("reward_score") or 0)
+            reward_target = int(j.get("reward_target") or 0)
+            reward_gap = max(0, reward_target - reward_score)
+            reward_next_action = str(j.get("reward_next_action") or "")
+            row_anchor = "twRow-" + re.sub(r"[^A-Za-z0-9_-]", "-", wi_id)
+            truth_text = f"<span class='truth-pill {truth_class(truth_status)}'>{html_escape(truth_status)}</span>"
+            if truth_snippet:
+                truth_text += f"<div class='muted'>{html_escape(truth_snippet)}</div>"
+
+            flags: list[str] = []
+            if status == "blocked":
+                flags.append("<span class='ws-flag risk'>blocked</span>")
+            if truth_status == "fail":
+                flags.append("<span class='ws-flag risk'>truth fail</span>")
+            if reward_gap > 0:
+                flags.append(f"<span class='ws-flag risk'>gap +{reward_gap}</span>")
+            if loop_status == "active":
+                flags.append("<span class='ws-flag'>loop active</span>")
+            flags_html = "".join(flags) if flags else "<span class='ws-flag'>stable</span>"
+
+            rows.append(
+                "<tr id='{row_anchor}' data-wi-row='1' "
+                "data-wi-id='{wi_id}' data-title='{title}' data-ws-id='{ws_id}' data-ws-title='{ws_title}' "
+                "data-status='{status}' data-truth='{truth}' data-reward-score='{reward_score}' "
+                "data-reward-target='{reward_target}' data-next-action='{next_action}' data-loop-status='{loop_status}'>"
+                "<td><code>{wi_id_h}</code></td>"
+                "<td>{title_h}</td>"
+                "<td><span class='pill {status_class}'>{status_h}</span></td>"
+                "<td>{wave}</td>"
+                "<td>{depends}</td>"
+                "<td>{truth_text}</td>"
+                "<td>{flags_html}</td>"
+                "<td>{loop_enabled} / <span class='pill {loop_class}'>{loop_status_h}</span></td>"
+                "<td>{loop_mode_h} / max {loop_max} / tries {loop_attempts}</td>"
+                "<td>{loop_target_display}</td>"
+                "<td>{loop_stop_reason_h}</td>"
+                "<td>{reward_score}/{reward_target}</td>"
+                "<td>{next_action_h}</td>"
+                "</tr>".format(
+                    row_anchor=html_escape(row_anchor),
+                    wi_id=html_escape(wi_id),
+                    title=html_escape(wi_title),
+                    ws_id=html_escape(ws_id),
+                    ws_title=html_escape(ws_title),
+                    status=html_escape(status),
+                    truth=html_escape(truth_status),
+                    reward_score=reward_score,
+                    reward_target=reward_target,
+                    next_action=html_escape(reward_next_action),
+                    loop_status=html_escape(loop_status),
+                    wi_id_h=html_escape(wi_id),
+                    title_h=html_escape(wi_title),
+                    status_class=status_class(status),
+                    status_h=html_escape(status),
+                    wave=html_escape(str(j.get("wave_id") or "")),
+                    depends=html_escape(", ".join(j.get("depends_on") or [])),
+                    truth_text=truth_text,
+                    flags_html=flags_html,
+                    loop_enabled=html_escape(loop_enabled),
+                    loop_class=loop_status_class(loop_status),
+                    loop_status_h=html_escape(loop_status),
+                    loop_mode_h=html_escape(loop_mode),
+                    loop_max=loop_max,
+                    loop_attempts=loop_attempts,
+                    loop_target_display=loop_target_display,
+                    loop_stop_reason_h=html_escape(loop_stop_reason),
+                    next_action_h=html_escape(reward_next_action),
+                )
+            )
+        rows_html = "".join(rows) if rows else "<tr><td colspan='12' class='muted'>(no jobs)</td></tr>"
+        ws_cards.append(
+            "<section class='card' data-ws-card='1' data-ws-id='{ws_id}'>"
+            "<div class='ws-head'>"
+            "<div>"
+            "<h3>{ws_id_h}: {ws_title_h} <span class='pill {ws_status_class}'>{ws_status_h}</span></h3>"
+            "<p class='ws-summary'>Depends on: {ws_depends_h}</p>"
+            "</div>"
+            "<div class='meta'>"
+            "<span class='muted'>visible <b data-visible-count>{job_count}</b>/{job_count}</span>"
+            "<button class='ws-toggle' data-ws-toggle='1' type='button'>Collapse</button>"
+            "</div>"
+            "</div>"
+            "<div class='ws-body' data-ws-body='1'>"
+            "<table>"
+            "<thead><tr><th>WI</th><th>Title</th><th>Status</th><th>Wave</th><th>Depends On</th><th>Truth</th><th>Flags</th>"
+            "<th>Loop</th><th>Loop Config</th><th>Loop Target</th><th>Loop Stop</th><th>Reward</th><th>Next Action</th></tr></thead>"
+            "<tbody>{rows_html}</tbody></table>"
+            "</div>"
+            "</section>".format(
+                ws_id=html_escape(ws_id),
+                ws_id_h=html_escape(ws_id),
+                ws_title_h=html_escape(ws_title),
+                ws_status_class=status_class(ws_status),
+                ws_status_h=html_escape(ws_status),
+                ws_depends_h=html_escape(ws_depends),
+                job_count=len(rows),
+                rows_html=rows_html,
+            )
+        )
+
+    waves_block = ""
+    waves = proj.get("waves", []) or []
+    if waves:
+        items = []
+        for w in waves:
+            if isinstance(w, dict):
+                wid = w.get("id", "")
+                title = w.get("title", "")
+                start = w.get("start", "")
+                end = w.get("end", "")
+                items.append(f"<li><b>{html_escape(wid)}</b> {html_escape(title)} ({html_escape(start)} -> {html_escape(end)})</li>")
+            else:
+                items.append(f"<li>{html_escape(str(w))}</li>")
+        waves_block = "<section class='card'><h3>Waves</h3><ul>" + "".join(items) + "</ul></section>"
+
+    group_rows: list[str] = []
+    for idx, group in enumerate(orchestration.get("parallel_groups", []) or []):
+        members = [str(m).strip() for m in group if str(m).strip()]
+        if not members:
+            continue
+        group_rows.append(f"<li>Group {idx + 1}: {html_escape(', '.join(members))}</li>")
+    groups_block = "<ul>" + "".join(group_rows) + "</ul>" if group_rows else "<p class='muted'>(none)</p>"
+
+    critical_members = [str(m).strip() for m in (orchestration.get("critical_path") or []) if str(m).strip()]
+    critical_hours = float(orchestration.get("critical_path_hours") or 0.0)
+    if critical_members:
+        critical_path_block = (
+            f"<p><b>{html_escape(' -> '.join(critical_members))}</b></p>"
+            f"<p class='muted'>hours: {critical_hours:.2f}</p>"
+        )
+    else:
+        critical_path_block = "<p class='muted'>(none)</p>"
+
+    recent_event_rows: list[str] = []
+    ticker_pairs: list[tuple[str, str]] = []
+    for evt in subagents.get("recent_events", []) or []:
+        ts = str(evt.get("timestamp") or "").strip()
+        display_text = str(evt.get("display_text") or "").strip() or "Agent event"
+        display_actor = str(evt.get("display_actor") or "").strip()
+        display_work_item = str(evt.get("display_work_item") or "").strip()
+        source = str(evt.get("source") or "agent").strip()
+        severity = str(evt.get("display_severity") or "info").strip().lower()
+        if severity not in {"info", "warn", "error"}:
+            severity = "info"
+        summary_text = f"{ts} - {display_text}" if ts else display_text
+        search_text = " ".join(
+            [
+                display_text,
+                display_actor,
+                display_work_item,
+                str(evt.get("work_item_id") or ""),
+                str(evt.get("source") or ""),
+            ]
+        ).strip()
+        raw_payload = evt.get("raw") if isinstance(evt.get("raw"), dict) else {}
+        raw_json = json.dumps(raw_payload, indent=2, sort_keys=True)
+        recent_event_rows.append(
+            "<li data-event-row='1' data-event-search='{search}'>"
+            "<div data-event-summary='1'>"
+            "<span class='event-pill {sev}'>{sev_up}</span>"
+            "<span>{summary}</span>"
+            "</div>"
+            "<details data-event-details='1'>"
+            "<summary>Raw event details</summary>"
+            "<pre class='mono' data-event-raw='1'>{raw}</pre>"
+            "</details>"
+            "</li>".format(
+                search=html_escape(search_text),
+                sev=html_escape(severity),
+                sev_up=html_escape(severity.upper()),
+                summary=html_escape(summary_text),
+                raw=html_escape(raw_json),
+            )
+        )
+        ticker_line = str(evt.get("ticker_text") or "").strip() or display_text
+        ticker_pairs.append((source, ticker_line))
+    recent_events_block = (
+        "<ul class='event-list'>" + "".join(recent_event_rows) + "</ul>"
+        if recent_event_rows
+        else "<p class='muted'>(no events)</p>"
+    )
+
+    dispatch_summary_text = str(dispatch.get("display_summary") or "").strip()
+    dispatch_summary_block = ""
+    if dispatch_summary_text:
+        dispatch_summary_block = f"<p class='muted' data-event-summary='1'>{html_escape(dispatch_summary_text)}</p>"
+        ticker_pairs.append(("dispatch", dispatch_summary_text))
+
+    deduped_ticker_pairs: list[tuple[str, str]] = []
+    seen_ticker_keys: set[str] = set()
+    for source, line in ticker_pairs:
+        src = str(source or "").strip() or "agent"
+        txt = re.sub(r"\s+", " ", str(line or "").strip())
+        if not txt:
+            continue
+        key = f"{src.lower()}|{txt.lower()}"
+        if key in seen_ticker_keys:
+            continue
+        seen_ticker_keys.add(key)
+        deduped_ticker_pairs.append((src, txt))
+
+    if not deduped_ticker_pairs:
+        note = str(subagents.get("telemetry_note") or "").strip()
+        fallback_text = note if note else "No active sub-agent events yet."
+        deduped_ticker_pairs = [("system", fallback_text)]
+
+    ticker_items_html = "".join(
+        "<span class='live-item'><span class='src'>{src}</span>{line}</span>".format(
+            src=html_escape(source),
+            line=html_escape(line),
+        )
+        for source, line in deduped_ticker_pairs[:14]
+    )
+    ticker_track_class = " is-static" if len(deduped_ticker_pairs) <= 2 else ""
+    ticker_duration = str(max(26, min(84, 9 * len(deduped_ticker_pairs))))
+
     wi_spend_items = toks.get("by_work_item") if isinstance(toks.get("by_work_item"), list) else []
     wi_spend_rows: list[str] = []
     for row in wi_spend_items:
         if not isinstance(row, dict):
             continue
         wi_id = str(row.get("work_item_id") or "")
+        wi_display = str(row.get("display_work_item") or "").strip() or wi_id or "Unlinked task"
         wi_cost = fmt_usd(row.get("estimated_cost_usd"))
         wi_weight = str(row.get("weight_basis") or "")
         wi_tokens = str(row.get("tokens_allocated") or 0)
         wi_spend_rows.append(
             "<tr>"
-            f"<td>{html_escape(wi_id)}</td>"
+            f"<td>{html_escape(wi_display)}</td>"
             f"<td>{html_escape(wi_cost)}</td>"
             f"<td>{html_escape(wi_weight)}</td>"
             f"<td>{html_escape(wi_tokens)}</td>"
@@ -688,438 +2452,109 @@ def render_html(payload: dict) -> str:
         wi_spend_rows = [
             "<tr><td colspan='4' class='muted'>(no attributable execution logs yet)</td></tr>"
         ]
-    truth_pass = int(truth.get("pass") or 0)
-    truth_fail = int(truth.get("fail") or 0)
-    truth_unknown = int(truth.get("unknown") or 0)
-    stale_dependencies = int(truth.get("stale_dependency_count") or 0)
-    sub_active = int(sub_counts.get("active") or 0)
-    sub_completed = int(sub_counts.get("completed") or 0)
-    sub_failed = int(sub_counts.get("failed") or 0)
 
-    group_rows: list[str] = []
-    for idx, group in enumerate(orchestration.get("parallel_groups", []) or []):
-        members = [str(m).strip() for m in group if str(m).strip()]
-        if not members:
-            continue
-        group_rows.append(f"<li>Group {idx + 1}: {html_escape(', '.join(members))}</li>")
-    groups_block = "<ul>" + "".join(group_rows) + "</ul>" if group_rows else "<p class='muted'>(none)</p>"
-
-    critical_members = [str(m).strip() for m in (orchestration.get("critical_path") or []) if str(m).strip()]
-    critical_hours = float(orchestration.get("critical_path_hours") or 0.0)
-    if critical_members:
-        critical_path_block = (
-            f"<p><b>{html_escape(' -> '.join(critical_members))}</b></p>"
-            f"<p class='muted'>hours: {critical_hours:.2f}</p>"
-        )
-    else:
-        critical_path_block = "<p class='muted'>(none)</p>"
-
-    recent_event_rows: list[str] = []
-    for evt in subagents.get("recent_events", []) or []:
-        ts = str(evt.get("timestamp") or "")
-        agent_id = str(evt.get("agent_id") or "")
-        status = str(evt.get("status") or "")
-        event_name = str(evt.get("event") or "")
-        message = str(evt.get("message") or "")
-        line = f"{ts} {agent_id} {status} {event_name}".strip()
-        if message:
-            line += f" - {message}"
-        recent_event_rows.append(f"<li>{html_escape(line)}</li>")
-    recent_events_block = (
-        "<ul>" + "".join(recent_event_rows) + "</ul>" if recent_event_rows else "<p class='muted'>(no events)</p>"
+    jobs_at_risk = int(stats["jobs_status"].get("blocked") or 0) + truth_fail
+    billing_plan_label = (
+        "Codex auth/subscription"
+        if billing_mode == "subscription_auth"
+        else "metered API"
+        if billing_mode == "metered_api"
+        else "unknown"
     )
 
-    return f"""<!doctype html>
-<html lang="en" data-generated-at="{generated_at}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TheWorkshop Dashboard</title>
-  <style>
-    :root {{
-      --bg: #f4f1ea;
-      --panel: #fffdf8;
-      --ink: #1f252c;
-      --muted: #5f6b75;
-      --line: #d7d0c4;
-      --accent: #0f6b5d;
-      --planned: #6b7280;
-      --inprogress: #b45f06;
-      --blocked: #b42318;
-      --done: #027a48;
-      --cancelled: #7a1f5c;
-    }}
-    .monitor {{
-      position: sticky;
-      top: 14px;
-      z-index: 10;
-      background: rgba(255, 253, 248, 0.88);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 10px 12px;
-      backdrop-filter: blur(10px);
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: space-between;
-      margin: 0 0 14px;
-    }}
-    .monitor .group {{
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }}
-    .badge {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: #f1ede5;
-      font-size: 12px;
-      line-height: 1.6;
-    }}
-    .badge-on {{ border-color: rgba(15,107,93,0.35); background: rgba(15,107,93,0.10); }}
-    .badge-off {{ border-color: rgba(95,107,117,0.35); background: rgba(95,107,117,0.12); }}
-    .badge-stale {{
-      border-color: rgba(180,35,24,0.35);
-      background: rgba(180,35,24,0.10);
-      color: var(--blocked);
-      font-weight: 700;
-      letter-spacing: .04em;
-    }}
-    button {{
-      appearance: none;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 6px 10px;
-      background: #fff;
-      color: var(--ink);
-      font-size: 12px;
-      cursor: pointer;
-    }}
-    button:hover {{ border-color: rgba(15,107,93,0.55); }}
-    button:active {{ transform: translateY(1px); }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 15% 15%, #efe7d8 0%, transparent 32%),
-        radial-gradient(circle at 85% 5%, #e2efe9 0%, transparent 30%),
-        linear-gradient(180deg, #f8f4ed 0%, var(--bg) 70%);
-      min-height: 100vh;
-    }}
-    .wrap {{ max-width: 1200px; margin: 0 auto; padding: 24px; }}
-    h1 {{ margin: 0; font-size: 30px; letter-spacing: .2px; }}
-    h2 {{ margin: 24px 0 12px; font-size: 18px; }}
-    h3 {{ margin: 0 0 8px; font-size: 16px; }}
-    .muted {{ color: var(--muted); }}
-    .grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
-    }}
-    .card {{
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-    }}
-    .pill {{
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      color: white;
-      font-size: 12px;
-      line-height: 1.5;
-      vertical-align: middle;
-      margin-left: 8px;
-    }}
-    .st-planned {{ background: var(--planned); }}
-    .st-inprogress {{ background: var(--inprogress); }}
-    .st-blocked {{ background: var(--blocked); }}
-    .st-done {{ background: var(--done); }}
-    .st-cancelled {{ background: var(--cancelled); }}
-    .truth-pill {{
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      line-height: 1.5;
-      text-transform: uppercase;
-      letter-spacing: .03em;
-      font-weight: 600;
-    }}
-    .truth-pass {{ background: rgba(2, 122, 72, 0.14); color: #03543f; }}
-    .truth-fail {{ background: rgba(180, 35, 24, 0.14); color: #9a2418; }}
-    .truth-unknown {{ background: rgba(95, 107, 117, 0.14); color: #3f4a54; }}
-    .panel-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }}
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }}
-    th, td {{
-      text-align: left;
-      padding: 8px 6px;
-      border-top: 1px solid var(--line);
-      vertical-align: top;
-    }}
-    th {{ font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }}
-    ul {{ margin: 6px 0 0 18px; }}
-    code {{
-      background: #f1ede5;
-      border: 1px solid #e0d8ca;
-      border-radius: 6px;
-      padding: 2px 6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-    }}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div id="twMonitor" class="monitor">
-      <div class="group">
-        <span class="muted"><b>Auto-refresh</b></span>
-        <span id="twRefreshStatus" class="badge badge-on">ON</span>
-        <span class="muted">next in <b id="twRefreshCountdown">5s</b></span>
-        <button id="twRefreshToggle" type="button">Pause</button>
-        <button id="twRefreshNow" type="button">Refresh now</button>
-      </div>
-      <div class="group">
-        <span id="twStaleBadge" class="badge badge-stale" style="display:none;">STALE</span>
-        <span class="muted">data age <b id="twDataAge">0s</b></span>
-        <span class="muted">generated <code id="twGeneratedAt">{generated_at}</code></span>
-      </div>
-    </div>
+    content: dict[str, str] = {
+        "generated_at": generated_at,
+        "project_id": html_escape(str(proj.get("id") or "")),
+        "project_title": html_escape(str(proj.get("title") or "")),
+        "project_status": html_escape(str(proj.get("status") or "")),
+        "project_status_class": status_class(str(proj.get("status") or "")),
+        "agreement_status": html_escape(str(proj.get("agreement_status") or "")),
+        "project_elapsed": html_escape(str(proj.get("elapsed") or "n/a")),
+        "status_filters_html": status_filters_html,
+        "truth_filters_html": truth_filters_html,
+        "workstreams_total": str(stats["workstreams_total"]),
+        "waves_count": str(len(waves)),
+        "jobs_total": str(stats["jobs_total"]),
+        "jobs_done": str(stats["jobs_status"]["done"]),
+        "jobs_cancelled": str(stats["jobs_status"]["cancelled"]),
+        "jobs_in_progress": str(stats["jobs_status"]["in_progress"]),
+        "jobs_blocked": str(stats["jobs_status"]["blocked"]),
+        "jobs_planned": str(stats["jobs_status"]["planned"]),
+        "truth_pass": str(truth_pass),
+        "truth_fail": str(truth_fail),
+        "truth_unknown": str(truth_unknown),
+        "stale_dependencies": str(stale_dependencies),
+        "commands": str(logs["commands"]),
+        "failures": str(logs["failures"]),
+        "avg_duration_sec": f"{logs['avg_duration_sec']:.2f}",
+        "subagents_line": html_escape(f"active {sub_active} | completed {sub_completed} | failed {sub_failed}"),
+        "dispatch_line": html_escape(dispatch_line),
+        "loops_enabled": str(stats["loops_enabled"]),
+        "loops_active": str(stats["loops_active"]),
+        "loops_blocked": str(stats["loops_blocked"]),
+        "loops_completed": str(stats["loops_completed"]),
+        "estimated_tokens": html_escape(str(toks["estimated_tokens"])),
+        "estimated_chars": html_escape(str(toks["estimated_chars"])),
+        "token_source_label": html_escape(token_source_label),
+        "session_tokens": html_escape(str(toks.get("codexbar_session_tokens") or "n/a")),
+        "last_turn_tokens": html_escape(str(toks.get("last_turn_tokens") or "n/a")),
+        "billed_session_cost_label": html_escape(billed_session_cost_label),
+        "billed_project_cost_label": html_escape(billed_project_cost_label),
+        "api_equivalent_session_cost_label": html_escape(api_equivalent_session_cost_label),
+        "api_equivalent_project_cost_label": html_escape(api_equivalent_project_cost_label),
+        "baseline_tokens": html_escape(str(toks.get("project_cost_baseline_tokens") or 0)),
+        "delta_tokens": html_escape(str(toks.get("project_cost_delta_tokens") or 0)),
+        "projection_seq": str(projection_seq),
+        "projection_warning_count": str(len(projection_warnings)),
+        "monitor_warning_lines": monitor_warning_lines,
+        "monitor_status": html_escape(monitor_status),
+        "monitor_policy": html_escape(monitor_policy),
+        "monitor_watch_pid": str(monitor_watch_pid),
+        "monitor_watch_state": "alive" if monitor_watch_alive else "stopped",
+        "cost_source_label": html_escape(cost_source_label),
+        "cost_confidence": html_escape(cost_confidence),
+        "billing_confidence": billing_confidence,
+        "rate_model_key": rate_model_key,
+        "rate_resolution": rate_resolution,
+        "billing_reason": billing_reason,
+        "github_sync_state": "enabled" if gh["enabled"] else "disabled",
+        "github_repo": html_escape(str(gh.get("repo") or "")),
+        "orchestration_path": html_escape(str(orchestration.get("path") or "outputs/orchestration.json")),
+        "groups_block": groups_block,
+        "critical_path_block": critical_path_block,
+        "subagents_path": html_escape(str(subagents.get("path") or "logs/agents.jsonl")),
+        "subagents_note": html_escape(str(subagents.get("telemetry_note") or "")),
+        "recent_events_block": recent_events_block,
+        "dispatch_path": html_escape(str(dispatch.get("path") or "logs/subagent-dispatch.jsonl")),
+        "dispatch_execution_path": html_escape(str(dispatch.get("execution_path") or "outputs/orchestration-execution.json")),
+        "dispatch_note": html_escape(dispatch_note),
+        "dispatch_summary_block": dispatch_summary_block,
+        "spend_table_title": html_escape(spend_table_title),
+        "wi_spend_rows_html": "".join(wi_spend_rows),
+        "ws_cards_html": "".join(ws_cards) if ws_cards else "<p class='muted'>(no workstreams)</p>",
+        "waves_block": waves_block,
+        "ticker_items_html": ticker_items_html,
+        "ticker_track_class": ticker_track_class,
+        "ticker_duration": ticker_duration,
+        "jobs_at_risk": str(jobs_at_risk),
+        "billing_plan_label": html_escape(billing_plan_label),
+    }
 
-    <h1>TheWorkshop Dashboard</h1>
-    <p class="muted"><b>{html_escape(proj['id'])}</b> {html_escape(proj['title'])}
-      <span class="pill {status_class(proj['status'])}">{html_escape(proj['status'])}</span>
-      | generated {html_escape(payload['generated_at'])}
-    </p>
-
-    <section class="grid">
-      <div class="card"><h3>Agreement</h3><p>{html_escape(proj.get('agreement_status',''))}</p></div>
-      <div class="card"><h3>Elapsed</h3><p>{html_escape(proj.get('elapsed','n/a'))}</p></div>
-      <div class="card"><h3>Workstreams</h3><p>{stats['workstreams_total']}</p></div>
-      <div class="card"><h3>Jobs</h3><p>{stats['jobs_total']}</p></div>
-      <div class="card"><h3>In Progress</h3><p>{stats['jobs_status']['in_progress']}</p></div>
-      <div class="card"><h3>Blocked</h3><p>{stats['jobs_status']['blocked']}</p></div>
-      <div class="card"><h3>Done</h3><p>{stats['jobs_status']['done']}</p></div>
-      <div class="card"><h3>Loop Jobs</h3>
-        <p>enabled: {stats['loops_enabled']}</p>
-        <p class="muted">active {stats['loops_active']} | completed {stats['loops_completed']} | blocked {stats['loops_blocked']} | stopped {stats['loops_stopped']} | error {stats['loops_error']}</p>
-      </div>
-      <div class="card"><h3>Truth Status</h3><p>pass {truth_pass} | fail {truth_fail} | unknown {truth_unknown}</p></div>
-      <div class="card"><h3>Stale Dependencies</h3><p>{stale_dependencies}</p></div>
-      <div class="card"><h3>Sub-Agents</h3><p>active {sub_active} | completed {sub_completed} | failed {sub_failed}</p></div>
-      <div class="card"><h3>Commands / Failures</h3><p>{logs['commands']} / {logs['failures']}</p></div>
-      <div class="card"><h3>Avg Command Duration</h3><p>{logs['avg_duration_sec']:.2f}s</p></div>
-      <div class="card"><h3>Estimated Tokens</h3><p>{toks['estimated_tokens']}</p><p class="muted">{toks['estimated_chars']} chars proxy</p></div>
-      <div class="card"><h3>Token Source</h3><p>{html_escape(token_source_label)}</p>
-        <p class="muted">session tokens: {html_escape(str(toks.get('codexbar_session_tokens') or 'n/a'))}</p>
-        <p class="muted">last turn: {html_escape(str(toks.get('last_turn_tokens') or 'n/a'))}</p>
-      </div>
-      <div class="card"><h3>Session Cost</h3>
-        <p>{html_escape(billed_session_cost_label)} billed</p>
-        <p class="muted">API-equivalent: {html_escape(api_equivalent_session_cost_label)}</p>
-        <p class="muted">plan: {'Codex auth/subscription' if billing_mode == 'subscription_auth' else 'metered API' if billing_mode == 'metered_api' else 'unknown'}</p>
-        <p class="muted">source: {html_escape(cost_source_label)} ({html_escape(cost_confidence)})</p>
-        <p class="muted">billing confidence: {html_escape(billing_confidence)}</p>
-        <p class="muted">model: {html_escape(rate_model_key or 'n/a')}</p>
-      </div>
-      <div class="card"><h3>Project Cost (Delta)</h3>
-        <p>{html_escape(billed_project_cost_label)} billed delta</p>
-        <p class="muted">API-equivalent delta: {html_escape(api_equivalent_project_cost_label)}</p>
-        <p class="muted">baseline tokens: {html_escape(str(toks.get('project_cost_baseline_tokens') or 0))}</p>
-        <p class="muted">delta tokens: {html_escape(str(toks.get('project_cost_delta_tokens') or 0))}</p>
-      </div>
-      <div class="card"><h3>GitHub Sync</h3><p>{'enabled' if gh['enabled'] else 'disabled'}</p>
-        <p class="muted">{html_escape(gh.get('repo') or '')}</p>
-      </div>
-    </section>
-
-    {waves_block}
-
-    <section class="panel-grid">
-      <section class="card">
-        <h3>Orchestration</h3>
-        <p class="muted">source: {html_escape(str(orchestration.get('path') or 'outputs/orchestration.json'))}</p>
-        <p><b>Parallel Groups</b></p>
-        {groups_block}
-        <p><b>Critical Path</b></p>
-        {critical_path_block}
-      </section>
-      <section class="card">
-        <h3>Sub-Agents</h3>
-        <p>active {sub_active} | completed {sub_completed} | failed {sub_failed}</p>
-        <p class="muted">source: {html_escape(str(subagents.get('path') or 'logs/agents.jsonl'))}</p>
-        <p><b>Recent Events</b></p>
-        {recent_events_block}
-      </section>
-    </section>
-
-    <section class="panel-grid">
-      <section class="card">
-        <h3>{html_escape(spend_table_title)}</h3>
-        <p class="muted">{html_escape(rate_resolution or 'rate resolution unavailable')}</p>
-        <p class="muted">{html_escape(billing_reason or '')}</p>
-        <table>
-          <thead><tr><th>Work Item</th><th>Estimated Cost</th><th>Weight</th><th>Tokens Allocated</th></tr></thead>
-          <tbody>
-            {''.join(wi_spend_rows)}
-          </tbody>
-        </table>
-      </section>
-    </section>
-
-    <h2>Workstreams & Jobs</h2>
-    {''.join(ws_cards) if ws_cards else '<p class="muted">(no workstreams)</p>'}
-
-    <section class="card">
-      <h3>Paths</h3>
-      <ul>
-        <li><code>outputs/dashboard.json</code></li>
-        <li><code>outputs/dashboard.md</code></li>
-        <li><code>outputs/dashboard.html</code></li>
-      </ul>
-    </section>
-  </div>
-  <script>
-  // TheWorkshop auto-refresh controller (file:// safe via cache-busting query param).
-  (function () {{
-    var REFRESH_MS = 5000;
-    // For file-based dashboards, "generated_at" only updates when the agent rebuilds the dashboard.
-    // Use a practical stale threshold so the UI doesn't scream STALE during normal multi-minute work.
-    var STALE_AFTER_MS = Math.max(5 * 60 * 1000, 2 * REFRESH_MS);
-    var LS_KEY = "theworkshop.autorefresh.enabled";
-    var SS_SCROLL_KEY = "theworkshop.autorefresh.scrollY";
-
-    function lsGet(key, fallback) {{
-      try {{ return window.localStorage.getItem(key) || fallback; }} catch (e) {{ return fallback; }}
-    }}
-    function lsSet(key, value) {{
-      try {{ window.localStorage.setItem(key, value); }} catch (e) {{}}
-    }}
-    function ssGet(key, fallback) {{
-      try {{ return window.sessionStorage.getItem(key) || fallback; }} catch (e) {{ return fallback; }}
-    }}
-    function ssSet(key, value) {{
-      try {{ window.sessionStorage.setItem(key, value); }} catch (e) {{}}
-    }}
-    function $(id) {{ return document.getElementById(id); }}
-    function setText(el, text) {{ if (el) el.textContent = text; }}
-    function show(el, on) {{ if (el) el.style.display = on ? "" : "none"; }}
-
-    var enabled = lsGet(LS_KEY, "1") !== "0";
-    var nextAt = Date.now() + REFRESH_MS;
-    var genAtStr = document.documentElement.getAttribute("data-generated-at") || "";
-    var genAtMs = Date.parse(genAtStr);
-
-    var elToggle = $("twRefreshToggle");
-    var elNow = $("twRefreshNow");
-    var elCountdown = $("twRefreshCountdown");
-    var elStatus = $("twRefreshStatus");
-    var elStale = $("twStaleBadge");
-    var elAge = $("twDataAge");
-
-    function saveScroll() {{
-      try {{ ssSet(SS_SCROLL_KEY, String(window.scrollY || 0)); }} catch (e) {{}}
-    }}
-
-    function restoreScroll() {{
-      var y = parseInt(ssGet(SS_SCROLL_KEY, "0"), 10);
-      if (!isNaN(y) && y > 0) {{
-        window.scrollTo(0, y);
-      }}
-    }}
-
-    function reloadNow() {{
-      saveScroll();
-      var base = window.location.href.split("?")[0];
-      window.location.replace(base + "?t=" + Date.now());
-    }}
-
-    function fmtAge(seconds) {{
-      var s = Math.max(0, Math.floor(seconds));
-      var m = Math.floor(s / 60);
-      var r = s % 60;
-      if (m <= 0) return s + "s";
-      return m + "m " + r + "s";
-    }}
-
-    function render() {{
-      if (elStatus) {{
-        elStatus.textContent = enabled ? "ON" : "PAUSED";
-        elStatus.className = enabled ? "badge badge-on" : "badge badge-off";
-      }}
-      if (elToggle) {{
-        elToggle.textContent = enabled ? "Pause" : "Resume";
-      }}
-    }}
-
-    function tick() {{
-      var now = Date.now();
-
-      if (!isNaN(genAtMs)) {{
-        setText(elAge, fmtAge((now - genAtMs) / 1000));
-      }}
-      if (!isNaN(genAtMs) && (now - genAtMs) > STALE_AFTER_MS) {{
-        show(elStale, true);
-      }} else {{
-        show(elStale, false);
-      }}
-
-      if (!enabled) {{
-        setText(elCountdown, "paused");
-        return;
-      }}
-
-      var remaining = Math.max(0, nextAt - now);
-      setText(elCountdown, Math.ceil(remaining / 1000) + "s");
-      if (now >= nextAt) {{
-        reloadNow();
-      }}
-    }}
-
-    if (elToggle) {{
-      elToggle.addEventListener("click", function () {{
-        enabled = !enabled;
-        lsSet(LS_KEY, enabled ? "1" : "0");
-        nextAt = Date.now() + REFRESH_MS;
-        render();
-        tick();
-      }});
-    }}
-    if (elNow) {{
-      elNow.addEventListener("click", function () {{
-        reloadNow();
-      }});
-    }}
-
-    render();
-    tick();
-    restoreScroll();
-    window.addEventListener("beforeunload", saveScroll);
-    window.setInterval(tick, 250);
-  }})();
-  </script>
-</body>
-</html>
-"""
+    return (
+        f"<!doctype html>\n"
+        f"<html lang=\"en\" data-generated-at=\"{generated_at}\">\n"
+        "<head>\n"
+        "  <meta charset=\"utf-8\">\n"
+        "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        "  <title>TheWorkshop Dashboard</title>\n"
+        f"  <style>{_render_dashboard_css()}</style>\n"
+        "</head>\n"
+        "<body>\n"
+        f"{_render_dashboard_layout(content)}\n"
+        f"<script>{_render_dashboard_js()}</script>\n"
+        "</body>\n"
+        "</html>\n"
+    )
 
 
 def render_md(payload: dict) -> str:
@@ -1131,7 +2566,12 @@ def render_md(payload: dict) -> str:
     truth = payload.get("truth_summary") or {}
     orchestration = payload.get("orchestration") or {}
     subagents = payload.get("subagents") or {}
+    dispatch = payload.get("dispatch") or {}
+    projection_seq = int(payload.get("projection_seq") or 0)
+    projection_warnings = payload.get("projection_warnings") if isinstance(payload.get("projection_warnings"), list) else []
+    monitor_state = payload.get("monitor_state") if isinstance(payload.get("monitor_state"), dict) else {}
     sub_counts = (subagents.get("counts") or {}) if isinstance(subagents, dict) else {}
+    dispatch_counts = (dispatch.get("counts") or {}) if isinstance(dispatch, dict) else {}
 
     lines = []
     lines.append("# TheWorkshop Dashboard")
@@ -1166,21 +2606,42 @@ def render_md(payload: dict) -> str:
     lines.append(f"- completed: {int(sub_counts.get('completed') or 0)}")
     lines.append(f"- failed: {int(sub_counts.get('failed') or 0)}")
     lines.append(f"- source: {subagents.get('path') or 'logs/agents.jsonl'}")
+    sub_note = str(subagents.get("telemetry_note") or "").strip()
+    if sub_note:
+        lines.append(f"- telemetry: {sub_note}")
     lines.append("- recent events:")
     recent_events = subagents.get("recent_events") or []
     if recent_events:
         for evt in recent_events:
             ts = str(evt.get("timestamp") or "")
-            agent_id = str(evt.get("agent_id") or "")
-            status = str(evt.get("status") or "")
-            event_name = str(evt.get("event") or "")
-            msg = str(evt.get("message") or "")
-            line = f"{ts} {agent_id} {status} {event_name}".strip()
-            if msg:
-                line += f" - {msg}"
+            line = str(evt.get("display_text") or "").strip()
+            if ts:
+                line = f"{ts} - {line}" if line else ts
+            severity = str(evt.get("display_severity") or "info").strip()
+            if line:
+                line = f"[{severity}] {line}"
             lines.append(f"  - {line}")
     else:
         lines.append("  - (none)")
+    lines.append("")
+    lines.append("## Dispatch Engine")
+    dispatch_mode = str(dispatch.get("mode") or "not_used")
+    lines.append(f"- mode: {dispatch_mode}")
+    if dispatch_mode == "not_used":
+        lines.append("- status: not used in this run")
+    else:
+        lines.append(f"- active: {int(dispatch_counts.get('active') or 0)}")
+        lines.append(f"- completed: {int(dispatch_counts.get('completed') or 0)}")
+        lines.append(f"- failed: {int(dispatch_counts.get('failed') or 0)}")
+        lines.append(f"- blocked: {int(dispatch_counts.get('blocked') or 0)}")
+    dispatch_note = str(dispatch.get("telemetry_note") or "").strip()
+    if dispatch_note:
+        lines.append(f"- telemetry: {dispatch_note}")
+    display_summary = str(dispatch.get("display_summary") or "").strip()
+    if display_summary:
+        lines.append(f"- summary: {display_summary}")
+    lines.append(f"- source: {dispatch.get('path') or 'logs/subagent-dispatch.jsonl'}")
+    lines.append(f"- execution summary: {dispatch.get('execution_path') or 'outputs/orchestration-execution.json'}")
     lines.append("")
     lines.append("## Orchestration")
     lines.append(f"- source: {orchestration.get('path') or 'outputs/orchestration.json'}")
@@ -1201,6 +2662,21 @@ def render_md(payload: dict) -> str:
         lines.append(f"- critical path: {' -> '.join(critical_path)} ({critical_hours:.2f}h)")
     else:
         lines.append("- critical path: (none)")
+    lines.append("")
+    lines.append("## Projection")
+    lines.append(f"- sequence: {projection_seq}")
+    if projection_warnings:
+        lines.append("- warnings:")
+        for item in projection_warnings:
+            lines.append(f"  - {item}")
+    else:
+        lines.append("- warnings: (none)")
+    lines.append("")
+    lines.append("## Monitor Runtime")
+    lines.append(f"- status: {monitor_state.get('status') or 'unknown'}")
+    lines.append(f"- policy: {monitor_state.get('policy') or 'always'}")
+    lines.append(f"- watch_pid: {monitor_state.get('watch_pid') or 0}")
+    lines.append(f"- watch_alive: {bool(monitor_state.get('watch_alive'))}")
     lines.append("")
     lines.append("## Tokens")
     lines.append(f"- Estimated tokens: {toks['estimated_tokens']} ({toks['estimated_chars']} chars proxy)")
@@ -1243,8 +2719,9 @@ def render_md(payload: dict) -> str:
         for row in by_wi:
             if not isinstance(row, dict):
                 continue
+            task = str(row.get("display_work_item") or row.get("work_item_id") or "Unlinked task")
             lines.append(
-                f"  - {row.get('work_item_id')}: ${float(row.get('estimated_cost_usd') or 0.0):.4f} "
+                f"  - {task}: ${float(row.get('estimated_cost_usd') or 0.0):.4f} "
                 f"(weight={row.get('weight_basis')}, tokens={row.get('tokens_allocated')})"
             )
         lines.append(
@@ -1290,10 +2767,24 @@ def render_md(payload: dict) -> str:
 
 
 def atomic_write_text(path: Path, text: str) -> None:
+    import os
+    import tempfile
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fp:
+            fp.write(text)
+            fp.flush()
+            os.fsync(fp.fileno())
+        os.replace(str(tmp), str(path))
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
 
 
 def main() -> None:
