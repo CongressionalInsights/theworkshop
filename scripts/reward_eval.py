@@ -375,8 +375,9 @@ def main() -> None:
     lines.append("| --- | --- | --- | --- | --- | --- |")
     for r in out:
         gate = "PASS" if r["gate_passed"] else "FAIL"
+        next_action_cell = str(r["next_action"]).replace("|", "\\|")
         lines.append(
-            f"| {r['work_item_id']} | {r['status']} | {r['reward_score']} | {r['reward_target']} | {gate} | {str(r['next_action']).replace('|','\\\\|')} |"
+            f"| {r['work_item_id']} | {r['status']} | {r['reward_score']} | {r['reward_target']} | {gate} | {next_action_cell} |"
         )
     if not out:
         lines.append("| (none) |  |  |  |  |  |")

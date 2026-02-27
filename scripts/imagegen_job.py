@@ -351,8 +351,6 @@ def main() -> None:
     declared_pngs = declared_png_outputs(job_dir)
 
     imagegen_cli = codex_home() / "skills" / "imagegen" / "scripts" / "image_gen.py"
-    if not imagegen_cli.exists():
-        raise SystemExit(f"Missing imagegen CLI: {imagegen_cli}")
 
     uv_bin = shutil.which("uv")
     if uv_bin:
@@ -409,6 +407,9 @@ def main() -> None:
         print("command=" + " ".join(run_cmd))
         print(f"credential_source={resolution.source}")
         return
+
+    if not imagegen_cli.exists():
+        raise SystemExit(f"Missing imagegen CLI: {imagegen_cli}")
 
     run_env = build_imagegen_run_env(
         provider=resolution.provider,
