@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      THEWORKSHOP_NO_OPEN: "1"
+      THEWORKSHOP_NO_MONITOR: "1"
+      THEWORKSHOP_NO_KEYCHAIN: "1"
+      THEWORKSHOP_NO_SUBAGENTS: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python syntax check
+        run: |
+          python -m compileall -q scripts
+
+      - name: Core regression suite
+        run: |
+          set -euo pipefail
+          python scripts/transition_done_guard_test.py
+          python scripts/transition_cancel_cascade_test.py
+          python scripts/job_complete_no_tentative_done_test.py
+          python scripts/truth_gate_pdf_test.py
+          python scripts/stale_invalidation_test.py
+          python scripts/orchestrate_plan_test.py
+          python scripts/dispatch_orchestration_test.py
+          python scripts/dispatch_monitor_policy_test.py
+          python scripts/council_plan_test.py
+          python scripts/dashboard_ui_interaction_test.py
+          python scripts/dashboard_log_readability_test.py
+          python scripts/agent_log_dashboard_test.py
+          python scripts/dashboard_cost_panel_test.py
+          python scripts/dashboard_subscription_cost_display_test.py
+          python scripts/imagegen_job_test.py
+          python scripts/imagegen_keychain_retry_test.py
+          python scripts/doctor_test.py
+          python scripts/schema_validate_test.py
+          python scripts/smoke_test.py
+          python scripts/sample_scenario_test.py

@@ -1,33 +1,73 @@
-# Release Checklist (`v0.1.0` Baseline)
+# Release Checklist (`v0.2.0` Baseline)
 
-## 1. Package Hygiene
+## 1. Packaging Hygiene (Hardening PR)
 
-- [ ] Confirm source-of-truth layout only (`scripts/`, `references/`, `examples/`, docs assets, root docs)
-- [ ] Ensure local run artifacts are ignored (`PJ-*`, `outputs/`, temp/log state)
-- [ ] Verify architecture image exists at `docs/assets/theworkshop-systems-architecture.png`
+- [ ] Confirm source-of-truth layout only:
+  - `scripts/`, `references/`, `schemas/`, `examples/sample-project/`, `docs/assets/`, root docs, `.github/`
+- [ ] Confirm runtime artifacts are ignored and untracked:
+  - `PJ-*`, `_test_runs/`, root `outputs/`, `logs/`, `tmp/`, `artifacts/`, `notes/`
+- [ ] Confirm architecture image exists at `docs/assets/theworkshop-systems-architecture.png`
+- [ ] CI workflow present and active: `.github/workflows/ci.yml`
 
-## 2. Documentation Truth
+## 2. Documentation Truth (Feature-Pack PR)
 
-- [ ] `README.md` has install, quickstart, architecture diagram, gates, roadmap
-- [ ] `SKILL.md` remains runtime/operator contract
-- [ ] `CHANGELOG.md` includes public launch baseline section
-- [ ] `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md` are present
+- [ ] `README.md` reflects current behavior and install/update path
+- [ ] `SKILL.md` matches runtime/operator contract
+- [ ] Gate semantics are consistent across docs (agreement/dependency+freshness/truth/reward)
+- [ ] Telemetry semantics are consistent across docs:
+  - canonical subagent telemetry in `logs/agents.jsonl`
+  - compatibility dispatch telemetry in `logs/subagent-dispatch.jsonl`
+- [ ] Billing and spend semantics are consistent (`subscription_auth|metered_api|unknown`)
+- [ ] Image credential semantics are consistent (`THEWORKSHOP_IMAGEGEN_API_KEY` env-first + compatibility aliases)
 
-## 3. Test and Scenario Confidence
+## 3. Release-Gate Tests
 
-- [ ] Run `scripts/*_test.py`
-- [ ] Run one synthetic end-to-end scenario and verify gates + dashboard artifacts
-- [ ] Verify imagegen path with `THEWORKSHOP_IMAGEGEN_API_KEY` (env-first), plus optional legacy `OPENAI_*` aliases
+Run before merging feature-pack PR and before tagging:
 
-## 4. GitHub Metadata + Triage Setup
+```bash
+python3 scripts/transition_done_guard_test.py
+python3 scripts/transition_cancel_cascade_test.py
+python3 scripts/job_complete_no_tentative_done_test.py
+python3 scripts/truth_gate_pdf_test.py
+python3 scripts/stale_invalidation_test.py
+python3 scripts/orchestrate_plan_test.py
+python3 scripts/dispatch_orchestration_test.py
+python3 scripts/dispatch_monitor_policy_test.py
+python3 scripts/council_plan_test.py
+python3 scripts/dashboard_ui_interaction_test.py
+python3 scripts/dashboard_log_readability_test.py
+python3 scripts/agent_log_dashboard_test.py
+python3 scripts/dashboard_cost_panel_test.py
+python3 scripts/dashboard_subscription_cost_display_test.py
+python3 scripts/imagegen_job_test.py
+python3 scripts/imagegen_keychain_retry_test.py
+python3 scripts/doctor_test.py
+python3 scripts/smoke_test.py
+python3 scripts/sample_scenario_test.py
+```
+
+## 4. Release Packaging (`v0.2.0`)
+
+- [ ] Add/update `releases/v0.2.0.md` with final release notes
+- [ ] Update `CHANGELOG.md` with consolidated `v0.2.0` release section
+- [ ] Merge feature-pack PR to `main`
+- [ ] Tag and publish release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+- [ ] Verify release page body matches `releases/v0.2.0.md`
+
+## 5. GitHub Metadata + Triage
 
 Repository metadata (manual):
 
-- Description: `Project OS for non-coding work with TruthGate, orchestration, monitoring, and spend visibility.`
-- Topics: `codex-skill`, `workflow`, `project-os`, `automation`, `non-coding`
-- Homepage: leave empty unless docs site is live
+- Description: `Codex/Claude Code skill for non-coding work with TruthGate, orchestration, monitoring, and spend visibility.`
+- Topics: `codex-skill`, `claude-code`, `workflow`, `project-os`, `automation`, `non-coding`
 
-Create triage labels:
+Triage labels (idempotent):
 
 ```bash
 gh label create "status:needs-repro" --color C5DEF5 --description "Needs reproducible steps" || true
@@ -38,10 +78,9 @@ gh label create "type:enhancement" --color A2EEEF --description "Enhancement req
 gh label create "docs" --color 0075CA --description "Documentation" || true
 ```
 
-## 5. Release + Share Flow
+## 6. Post-Release Health
 
-- [ ] Tag and publish `v0.1.0`
-- [ ] Use `releases/v0.1.0.md` for release notes body
-- [ ] Open pinned Discussion: `Start here: adoption feedback + Q&A`
-- [ ] Open one issue: `Known limitations`
-- [ ] Share canonical URL as release page link
+- [ ] `README` release badge resolves latest tag
+- [ ] Issue templates and PR template render correctly
+- [ ] Pinned discussion / known limitations issue updated for current release
+- [ ] `Unreleased` section in `CHANGELOG.md` reset for next cycle
