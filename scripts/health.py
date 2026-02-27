@@ -480,7 +480,7 @@ def _safe_repair(project_root: Path) -> list[dict[str, Any]]:
         ("plan_sync.py", ["--project", str(project_root)]),
         ("task_tracker_build.py", ["--project", str(project_root)]),
         ("orchestrate_plan.py", ["--project", str(project_root)]),
-        ("dashboard_build.py", ["--project", str(project_root)]),
+        ("dashboard_projector.py", ["--project", str(project_root)]),
     ]:
         try:
             run_script(script, argv)

@@ -36,10 +36,10 @@ def _ensure_dashboard(project_root: Path, dashboard_path: Path, *, out_html_over
     argv = ["--project", str(project_root)]
     if out_html_override:
         argv += ["--out-html", str(dashboard_path)]
-    proc = _run_py("dashboard_build.py", argv)
+    proc = _run_py("dashboard_projector.py", argv)
     if proc.returncode != 0:
         raise SystemExit(
-            "dashboard_build.py failed:\n"
+            "dashboard_projector.py failed:\n"
             f"  exit={proc.returncode}\n"
             f"  stdout:\n{proc.stdout}\n"
             f"  stderr:\n{proc.stderr}\n"
@@ -167,4 +167,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

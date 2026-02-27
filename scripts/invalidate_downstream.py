@@ -414,7 +414,7 @@ def main() -> None:
         run_py_best_effort("task_tracker_build.py", project_root)
     if stale_jobs and not args.no_dashboard:
         run_py_best_effort("orchestrate_plan.py", project_root)
-        run_py_best_effort("dashboard_build.py", project_root)
+        run_py_best_effort("dashboard_projector.py", project_root)
 
     print(str(out_path))
 

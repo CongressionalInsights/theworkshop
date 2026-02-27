@@ -5,6 +5,11 @@ TheWorkshop generates a lightweight interface under `outputs/`:
 - `dashboard.json` (canonical data model)
 - `dashboard.md` (readable summary)
 - `dashboard.html` (self-contained visual view)
+- Optional live transport server: `scripts/dashboard_server.py` (HTTP + SSE)
+
+Single-writer rule:
+- Lifecycle/orchestration flows should project dashboard artifacts through `scripts/dashboard_projector.py`.
+- `dashboard_projector.py` uses a lock + unique temp files + atomic replace to avoid concurrent writer races.
 
 ## Monitoring behavior (required)
 
@@ -12,6 +17,7 @@ Once execution begins, TheWorkshop must:
 - Build the dashboard artifacts.
 - **Auto-open** `outputs/dashboard.html` in a new browser window (best-effort, open-once per session).
 - Keep the page readable while it runs: the HTML includes an **auto-refresh controller** (default ~5s) with a visible pause/resume toggle and a stale indicator.
+- If opened via `dashboard_server.py` (`http://127.0.0.1:*`), the dashboard upgrades to SSE live mode via `/events`; if SSE is unavailable/disconnected, file polling remains active.
 - Start a best-effort **dashboard watcher** that periodically rebuilds dashboard artifacts so the auto-refresh actually has new state to display (otherwise the page can feel “stuck”).
 
 Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
@@ -34,6 +40,11 @@ The dashboard must include:
   - project delta spend from `logs/token-baseline.json`
   - per-work-item spend allocation (approximate) from `logs/execution.jsonl`
 - Rewards: score, target, next action
+- Sub-agent telemetry: canonical event stream from `logs/agents.jsonl` (manual + dispatch sources).
+- Dispatch telemetry: filtered dispatch-source counts from canonical `logs/agents.jsonl`; `logs/subagent-dispatch.jsonl` is compatibility/diagnostic only.
+- Dispatch execution summary from `outputs/orchestration-execution.json`
+- Operator readability: event/task logs are normalized for human reading by default (title-first, shortened IDs, severity tags).
+- Debug fidelity: full machine payload remains available via per-event details drawers in `dashboard.html`.
 - GitHub sync: repo + enabled + last sync (if enabled)
 
 ## Spend semantics
@@ -66,4 +77,12 @@ The dispatcher includes a best-effort helper:
 
 - `theworkshop monitor --project <path>`
 
+For SSE live serving:
+
+- `theworkshop dashboard-serve --project <path> --open`
+
 This opens the dashboard (open-once) and starts the background watcher.
+
+For explicit runtime controls:
+- `theworkshop monitor-start --project <path> --policy always|once|manual`
+- `theworkshop monitor-stop --project <path>`

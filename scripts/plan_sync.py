@@ -73,6 +73,15 @@ def project_rollup(workstreams: list[Workstream]) -> tuple[str, str]:
 
 
 def apply_rollup_transition(frontmatter: dict, body: str, *, prev_status: str, new_status: str, reason: str, ts: str) -> str:
+    # Cancellation is terminal and explicit. Rollups should not auto-overwrite it.
+    if prev_status == "cancelled":
+        new_status = "cancelled"
+        reason = "sticky cancelled terminal state"
+    # Explicit completion for empty scopes should remain done.
+    elif prev_status == "done" and new_status == "planned" and reason in {"no jobs", "no workstreams"}:
+        new_status = "done"
+        reason = "sticky done terminal state for empty scope"
+
     frontmatter["status"] = new_status
 
     started_at = str(frontmatter.get("started_at") or "").strip()

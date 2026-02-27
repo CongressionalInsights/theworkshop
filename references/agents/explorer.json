@@ -1,0 +1,16 @@
+{
+  "schema": "theworkshop.agentprofile.v1",
+  "name": "explorer",
+  "agent_type": "explorer",
+  "description": "Read-only investigation and context-gathering profile for decomposition and dependency checks.",
+  "default_for": {
+    "stakes": ["low", "normal"],
+    "orchestration_mode": ["investigate", "research", "analyze"]
+  },
+  "execution": {
+    "default_dispatch_budget": 1,
+    "default_retry_limit": 1,
+    "preferred_parallel_group_size": 2,
+    "notes": "Use for discovery and fact-finding tasks before implementation."
+  }
+}

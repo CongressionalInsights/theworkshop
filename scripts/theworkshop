@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +34,8 @@ def main() -> int:
     sub.add_parser("dashboard", help="Build dashboard artifacts")
     sub.add_parser("open-dashboard", help="Open dashboard (best-effort, open-once)")
     sub.add_parser("monitor", help="Open dashboard and keep it live (best-effort)")
+    sub.add_parser("monitor-start", help="Start monitor runtime for project execution")
+    sub.add_parser("monitor-stop", help="Stop monitor runtime/watcher")
     sub.add_parser("task-tracker", help="Build/update task tracker CSV (1 row per job)")
     sub.add_parser("sync", help="Sync plan tables (project/workstreams) from on-disk state")
     sub.add_parser("rollup", help="Roll up statuses (job->workstream->project) + sync plan tables")
@@ -85,6 +86,8 @@ def main() -> int:
     sub.add_parser("job-complete", help="Complete a job (reward-gated) + sync")
     sub.add_parser("workstream-complete", help="Complete a workstream (only if all jobs are done) + sync")
     sub.add_parser("project-complete", help="Complete a project (only if all workstreams are done) + sync")
+    sub.add_parser("project-close", help="Close project as cancelled or done (canonical transition)")
+    sub.add_parser("transition", help="Canonical transition engine for project/workstream/job")
     sub.add_parser("imagegen-job", help="Run image generation for a WI job (provider-agnostic credentials)")
     sub.add_parser("doctor", help="Preflight checks for one-pass reliability")
     sub.add_parser("health", help="Validate project topology/integrity and optionally repair safe issues")
@@ -97,6 +100,10 @@ def main() -> int:
     sub.add_parser("github-sync", help="GitHub mirroring/sync (opt-in)")
     sub.add_parser("truth-eval", help="Run truth evaluation hooks (placeholder)")
     sub.add_parser("orchestrate", help="Build orchestration waves for runnable jobs")
+    sub.add_parser("dispatch", help="Execute runnable orchestration groups with delegated subagent runs")
+    sub.add_parser("council-plan", help="Run optional multi-planner council synthesis before agreement")
+    sub.add_parser("schema-validate", help="Validate JSON artifacts against TheWorkshop schemas")
+    sub.add_parser("dashboard-serve", help="Serve dashboard with local SSE updates (optional)")
     sub.add_parser("invalidate-downstream", help="Invalidate stale done downstream jobs")
     sub.add_parser("agent-log", help="Append an event to logs/agents.jsonl")
 
@@ -108,9 +115,11 @@ def main() -> int:
         "check": "plan_check.py",
         "optimize": "optimize_plan.py",
         "reward-eval": "reward_eval.py",
-        "dashboard": "dashboard_build.py",
+        "dashboard": "dashboard_projector.py",
         "open-dashboard": "dashboard_open.py",
         "monitor": "dashboard_monitor.py",
+        "monitor-start": "monitor_runtime.py",
+        "monitor-stop": "monitor_runtime.py",
         "task-tracker": "task_tracker_build.py",
         "sync": "plan_sync.py",
         "rollup": "plan_sync.py",
@@ -119,6 +128,8 @@ def main() -> int:
         "job-complete": "job_complete.py",
         "workstream-complete": "workstream_complete.py",
         "project-complete": "project_complete.py",
+        "project-close": "project_close.py",
+        "transition": "transition.py",
         "imagegen-job": "imagegen_job.py",
         "doctor": "doctor.py",
         "health": "health.py",
@@ -131,11 +142,20 @@ def main() -> int:
         "github-sync": "github_sync.py",
         "truth-eval": "truth_eval.py",
         "orchestrate": "orchestrate_plan.py",
+        "dispatch": "dispatch_orchestration.py",
+        "council-plan": "council_plan.py",
+        "schema-validate": "schema_validate.py",
+        "dashboard-serve": "dashboard_server.py",
         "invalidate-downstream": "invalidate_downstream.py",
         "agent-log": "agent_log.py",
     }
     script = mapping[args.cmd]
-    return run(script, sys.argv[2:])
+    argv = sys.argv[2:]
+    if args.cmd == "monitor-start":
+        argv = ["start"] + argv
+    elif args.cmd == "monitor-stop":
+        argv = ["stop"] + argv
+    return run(script, argv)
 
 
 if __name__ == "__main__":

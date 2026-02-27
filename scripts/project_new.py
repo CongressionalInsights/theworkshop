@@ -52,6 +52,9 @@ def build_project_plan(project_id: str, title: str) -> MarkdownDoc:
         "github_repo": "",
         "subagent_policy": "auto",
         "max_parallel_agents": 3,
+        "monitor_open_policy": "always",
+        "monitor_session_id": "",
+        "last_transition_id": "",
         "waves": [],
         "workstreams": [],
     }

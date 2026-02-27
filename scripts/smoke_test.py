@@ -147,6 +147,7 @@ def main() -> None:
     run(py("dashboard_build.py") + ["--project", str(project_root)])
     run(py("optimize_plan.py") + ["--project", str(project_root)])
     run(py("usage_snapshot.py") + ["--project", str(project_root)])
+    run(py("schema_validate.py") + ["--project", str(project_root)])
     print("[6] tracker/rewards/dashboard/optimize/usage: OK")
 
     # Lessons

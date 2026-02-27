@@ -246,7 +246,7 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
     elif looks_placeholder(verification_text):
         next_action = "Write a concrete verification plan and declare evidence files."
     elif not (dash_json.exists() and dash_html.exists()):
-        next_action = "Run dashboard_build.py to refresh dashboard artifacts."
+        next_action = "Run dashboard_projector.py to refresh dashboard artifacts."
     elif not tracker:
         next_action = "Run scripts/task_tracker_build.py to generate outputs/*-task-tracker.csv, then rerun reward eval."
     elif not wi_entries:
@@ -393,12 +393,12 @@ def main() -> None:
         scripts_dir = Path(__file__).resolve().parent
         try:
             dash = subprocess.run(
-                [sys.executable, str(scripts_dir / "dashboard_build.py"), "--project", str(project_root)],
+                [sys.executable, str(scripts_dir / "dashboard_projector.py"), "--project", str(project_root)],
                 text=True,
                 capture_output=True,
             )
             if dash.returncode != 0:
-                print("warning: dashboard_build.py failed (best-effort).", file=sys.stderr)
+                print("warning: dashboard_projector.py failed (best-effort).", file=sys.stderr)
                 if dash.stderr:
                     print(dash.stderr, end="", file=sys.stderr)
         except Exception as e:

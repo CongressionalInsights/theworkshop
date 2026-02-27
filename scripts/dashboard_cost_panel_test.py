@@ -144,7 +144,7 @@ Test dashboard token/cost panels.
         "API-Equivalent Spend By Work Item (Estimated)",
         "$0.0000 billed",
         "plan: Codex auth/subscription",
-        "WI-COST-001",
+        "WI-001",
     ):
         if marker not in html:
             raise RuntimeError(f"Expected subscription dashboard.html to contain {marker!r}")
@@ -160,7 +160,7 @@ Test dashboard token/cost panels.
         raise RuntimeError(f"Expected metered override, got {tokens_metered.get('billing_mode')!r}")
 
     html_metered = (project_root / "outputs" / "dashboard.html").read_text(encoding="utf-8", errors="ignore")
-    for marker in ("Spend By Work Item (Estimated)", "plan: metered API", "WI-COST-001"):
+    for marker in ("Spend By Work Item (Estimated)", "plan: metered API", "WI-001"):
         if marker not in html_metered:
             raise RuntimeError(f"Expected metered dashboard.html to contain {marker!r}")
 

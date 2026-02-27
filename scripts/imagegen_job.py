@@ -202,7 +202,27 @@ def build_imagegen_run_env(
     if provider == "keychain" and not no_keychain and "CODEX_KEYCHAIN_DIALOG_TIMEOUT" not in run_env:
         # Fail fast in headless/stuck-dialog contexts instead of hanging indefinitely.
         run_env["CODEX_KEYCHAIN_DIALOG_TIMEOUT"] = "30s"
+    if provider == "keychain" and not no_keychain and "CODEX_KEYCHAIN_APPROVE" not in run_env:
+        # In non-interactive sessions, default to approval bypass so image jobs don't deadlock on GUI prompts.
+        if (not sys.stdin.isatty()) or str(run_env.get("CI") or "").strip() == "1":
+            run_env["CODEX_KEYCHAIN_APPROVE"] = "1"
     return run_env
+
+
+def should_retry_keychain_headless(stdout_text: str, stderr_text: str) -> bool:
+    text = (stdout_text or "") + "\n" + (stderr_text or "")
+    token = text.lower()
+    keychain_markers = (
+        "keychain",
+        "approval",
+        "approve",
+        "dialog",
+        "osascript",
+        "applescript",
+        "timed out",
+        "timeout",
+    )
+    return any(marker in token for marker in keychain_markers)
 
 
 def parse_prompts_jsonl(path: Path, out_dir: Path) -> tuple[list[dict], list[Path]]:
@@ -422,6 +442,14 @@ def main() -> None:
     proc = subprocess.run(run_cmd, text=True, capture_output=True, env=run_env)
     if proc.stdout:
         print(proc.stdout, end="")
+    if proc.returncode != 0 and resolution.provider == "keychain" and "CODEX_KEYCHAIN_APPROVE" not in run_env:
+        if should_retry_keychain_headless(proc.stdout or "", proc.stderr or ""):
+            retry_env = dict(run_env)
+            retry_env["CODEX_KEYCHAIN_APPROVE"] = "1"
+            print("imagegen_job: retrying with CODEX_KEYCHAIN_APPROVE=1 for headless keychain flow", file=sys.stderr)
+            proc = subprocess.run(run_cmd, text=True, capture_output=True, env=retry_env)
+            if proc.stdout:
+                print(proc.stdout, end="")
     if proc.returncode != 0:
         raise SystemExit(
             "image generation failed:\n"

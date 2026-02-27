@@ -93,8 +93,11 @@ python3 scripts/discuss.py --project /path/to/project --work-item-id WI-YYYYMMDD
 
 # validate and orchestrate
 python3 scripts/plan_check.py --project /path/to/project
+python3 scripts/schema_validate.py --project /path/to/project
 python3 scripts/optimize_plan.py --project /path/to/project
 python3 scripts/orchestrate_plan.py --project /path/to/project
+python3 scripts/dispatch_orchestration.py --project /path/to/project --dry-run
+python3 scripts/council_plan.py --project /path/to/project --dry-run
 
 # execute one job
 python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
@@ -104,6 +107,7 @@ python3 scripts/job_complete.py --project /path/to/project --work-item-id WI-YYY
 # optional utility lanes
 python3 scripts/health.py --project /path/to/project --repair
 python3 scripts/quick.py --project /path/to/project --title "One-off patch" --command "echo done"
+python3 scripts/dashboard_server.py --project /path/to/project --open
 ```
 
 Expected core outputs:
@@ -125,6 +129,9 @@ Expected core outputs:
 
 - Dashboard auto-opens best-effort at execution start (unless disabled)
 - Auto-refresh supports stale detection and pause/resume
+- Optional local live transport: `python3 scripts/dashboard_server.py --project /path/to/project`
+  - serves `dashboard.html` over `http://127.0.0.1:*`
+  - publishes `/events` SSE updates so the page can switch from poll mode to live mode
 - Cost display is billing-aware:
   - `subscription_auth`: billed cost shown as `$0` marginal, API-equivalent shown secondarily
   - `metered_api`: billed cost from exact telemetry when available
@@ -167,6 +174,14 @@ The `apple-keychain` skill remains optional and cross-platform fallback behavior
 python3 scripts/doctor.py
 cd scripts && for t in *_test.py; do python3 "$t"; done
 ```
+
+## One-Command Install
+
+```bash
+./scripts/install_skill.sh --force
+```
+
+Use `--link` for a symlinked dev install.
 
 ## Open-Source Workflow
 
