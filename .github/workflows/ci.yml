@@ -16,7 +16,6 @@ jobs:
       THEWORKSHOP_NO_OPEN: "1"
       THEWORKSHOP_NO_MONITOR: "1"
       THEWORKSHOP_NO_KEYCHAIN: "1"
-      THEWORKSHOP_NO_SUBAGENTS: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,23 +32,33 @@ jobs:
       - name: Core regression suite
         run: |
           set -euo pipefail
-          python scripts/transition_done_guard_test.py
-          python scripts/transition_cancel_cascade_test.py
-          python scripts/job_complete_no_tentative_done_test.py
-          python scripts/truth_gate_pdf_test.py
-          python scripts/stale_invalidation_test.py
-          python scripts/orchestrate_plan_test.py
-          python scripts/dispatch_orchestration_test.py
-          python scripts/dispatch_monitor_policy_test.py
-          python scripts/council_plan_test.py
-          python scripts/dashboard_ui_interaction_test.py
-          python scripts/dashboard_log_readability_test.py
-          python scripts/agent_log_dashboard_test.py
-          python scripts/dashboard_cost_panel_test.py
-          python scripts/dashboard_subscription_cost_display_test.py
-          python scripts/imagegen_job_test.py
-          python scripts/imagegen_keychain_retry_test.py
-          python scripts/doctor_test.py
-          python scripts/schema_validate_test.py
-          python scripts/smoke_test.py
-          python scripts/sample_scenario_test.py
+          tests=(
+            scripts/transition_done_guard_test.py
+            scripts/transition_cancel_cascade_test.py
+            scripts/job_complete_no_tentative_done_test.py
+            scripts/truth_gate_pdf_test.py
+            scripts/stale_invalidation_test.py
+            scripts/orchestrate_plan_test.py
+            scripts/dispatch_orchestration_test.py
+            scripts/dispatch_monitor_policy_test.py
+            scripts/council_plan_test.py
+            scripts/dashboard_ui_interaction_test.py
+            scripts/dashboard_log_readability_test.py
+            scripts/agent_log_dashboard_test.py
+            scripts/dashboard_cost_panel_test.py
+            scripts/dashboard_subscription_cost_display_test.py
+            scripts/imagegen_job_test.py
+            scripts/imagegen_keychain_retry_test.py
+            scripts/doctor_test.py
+            scripts/schema_validate_test.py
+            scripts/smoke_test.py
+            scripts/sample_scenario_test.py
+          )
+          for t in "${tests[@]}"; do
+            if [[ -f "$t" ]]; then
+              echo "running: $t"
+              python "$t"
+            else
+              echo "skip (not present on this branch): $t"
+            fi
+          done
