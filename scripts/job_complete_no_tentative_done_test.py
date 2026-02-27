@@ -135,8 +135,9 @@ def main() -> None:
     text = doc.body
     if "gate PASSED" in text:
         raise RuntimeError("Progress log should not contain gate PASSED for failed completion")
-    if "FAILED gate" not in text:
-        raise RuntimeError("Progress log should record FAILED gate on completion failure")
+    text_l = text.lower()
+    if ("job_complete: gate failed" not in text_l) and ("job_complete: input_snapshot failed" not in text_l):
+        raise RuntimeError("Progress log should record completion failure reason")
 
     print("JOB COMPLETE NO TENTATIVE DONE TEST PASSED")
     print(str(project_root))

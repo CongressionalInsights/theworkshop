@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
-from plan_sync import sync_project_plans
-from tw_tools import append_section_bullet, validate_context_gate_for_job
+from transition import transition_entity
+from tw_tools import append_section_bullet, run_script, validate_context_gate_for_job
 from twlib import list_job_dirs, list_workstream_dirs, normalize_str_list, now_iso, read_md, resolve_project_root, write_md
 
 
@@ -23,27 +22,6 @@ def file_exists_nonempty(path: Path) -> bool:
         return path.exists() and path.is_file() and path.stat().st_size > 0
     except Exception:
         return False
-
-
-def run_py(script: str, argv: list[str]) -> None:
-    scripts_dir = Path(__file__).resolve().parent
-    cmd = [sys.executable, str(scripts_dir / script)] + argv
-    proc = subprocess.run(cmd, text=True, capture_output=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            "Command failed:\n"
-            f"  cmd={' '.join(cmd)}\n"
-            f"  exit={proc.returncode}\n"
-            f"  stdout:\n{proc.stdout}\n"
-            f"  stderr:\n{proc.stderr}\n"
-        )
-
-
-def run_py_best_effort(script: str, argv: list[str]) -> None:
-    try:
-        run_py(script, argv)
-    except Exception as exc:
-        print(f"warning: {script} failed (best-effort): {exc}", file=sys.stderr)
 
 
 def dependency_gate_errors(project_root: Path, fm: dict) -> list[str]:
@@ -110,9 +88,6 @@ def gating_errors(project_root: Path, job_dir: Path) -> list[str]:
 
 
 def parent_workstream_dir(project_root: Path, job_dir: Path) -> Path:
-    """
-    job_dir is expected under: <project>/workstreams/<ws>/jobs/<wi>-...
-    """
     try:
         rel = job_dir.relative_to(project_root)
     except Exception:
@@ -126,75 +101,54 @@ def parent_workstream_dir(project_root: Path, job_dir: Path) -> Path:
     return ws_dir
 
 
-def try_complete_workstream(project_root: Path, ws_dir: Path, *, ts: str) -> str | None:
-    ws_plan = ws_dir / "plan.md"
-    if not ws_plan.exists():
-        return None
-    ws_doc = read_md(ws_plan)
-    ws_id = str(ws_doc.frontmatter.get("id") or "").strip()
-    if not ws_id:
-        parts = ws_dir.name.split("-", 3)
-        ws_id = "-".join(parts[:3]) if len(parts) >= 3 else ws_dir.name
-    ws_status = str(ws_doc.frontmatter.get("status") or "planned").strip()
-    if ws_status in {"done", "cancelled"}:
-        return None
-
-    # Eligible only if all jobs are done (consistent with plan_check gate).
+def all_jobs_done(ws_dir: Path) -> bool:
     for jd in list_job_dirs(ws_dir):
-        jdoc = read_md(jd / "plan.md")
-        st = str(jdoc.frontmatter.get("status") or "planned").strip()
+        st = str(read_md(jd / "plan.md").frontmatter.get("status") or "planned").strip()
         if st != "done":
-            return None
-
-    ws_doc.frontmatter["status"] = "done"
-    if not str(ws_doc.frontmatter.get("completed_at") or "").strip():
-        ws_doc.frontmatter["completed_at"] = ts
-    ws_doc.frontmatter["updated_at"] = ts
-    ws_doc.body = append_section_bullet(ws_doc.body, "# Progress Log", f"{ts} auto-complete: all jobs done; status=done")
-    write_md(ws_plan, ws_doc)
-    return ws_id
+            return False
+    return True
 
 
-def try_complete_project(project_root: Path, *, ts: str) -> str | None:
-    proj_plan = project_root / "plan.md"
-    if not proj_plan.exists():
-        return None
-    proj_doc = read_md(proj_plan)
-    proj_id = str(proj_doc.frontmatter.get("id") or "").strip()
-    status = str(proj_doc.frontmatter.get("status") or "planned").strip()
-    if status in {"done", "cancelled"}:
-        return None
-
-    # Eligible only if all workstreams are done (consistent with plan_check gate).
+def all_workstreams_done(project_root: Path) -> bool:
     for ws_dir in list_workstream_dirs(project_root):
-        ws_doc = read_md(ws_dir / "plan.md")
-        ws_status = str(ws_doc.frontmatter.get("status") or "planned").strip()
-        if ws_status != "done":
-            return None
+        st = str(read_md(ws_dir / "plan.md").frontmatter.get("status") or "planned").strip()
+        if st != "done":
+            return False
+    return True
 
-    proj_doc.frontmatter["status"] = "done"
-    if not str(proj_doc.frontmatter.get("completed_at") or "").strip():
-        proj_doc.frontmatter["completed_at"] = ts
-    proj_doc.frontmatter["updated_at"] = ts
-    proj_doc.body = append_section_bullet(proj_doc.body, "# Progress Log", f"{ts} auto-complete: all workstreams done; status=done")
-    write_md(proj_plan, proj_doc)
-    return proj_id or "PROJECT"
+
+def append_progress_note(plan_path: Path, note: str, *, ts: str | None = None) -> None:
+    stamp = ts or now_iso()
+    doc = read_md(plan_path)
+    doc.body = append_progress_line(doc.body, f"{stamp} {note}")
+    doc.frontmatter["updated_at"] = stamp
+    write_md(plan_path, doc)
+
+
+def append_progress_if_noop(plan_path: Path, *, to_status: str, note: str) -> None:
+    current = str(read_md(plan_path).frontmatter.get("status") or "planned").strip()
+    if current == to_status:
+        append_progress_note(plan_path, note)
+
+
+def append_progress_line(body: str, line: str) -> str:
+    return append_section_bullet(body, "# Progress Log", line)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Attempt to complete a TheWorkshop job (reward-gated). Updates artifacts, runs reward eval, and only marks done if gates pass."
+        description="Attempt to complete a TheWorkshop job (gate-validated + canonical transition)."
     )
     parser.add_argument("--project", help="Project root (defaults to nearest parent with plan.md)")
     parser.add_argument("--work-item-id", required=True, help="WI-... to complete")
     parser.add_argument(
         "--cascade",
         action="store_true",
-        help="If completion succeeds, auto-complete the parent workstream when it becomes eligible (and the project if all workstreams become done).",
+        help="If completion succeeds, auto-complete parent workstream/project when eligible.",
     )
-    parser.add_argument("--no-sync", action="store_true", help="Do not run plan_sync after completion attempt")
-    parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard build (not recommended)")
-    parser.add_argument("--no-open", action="store_true", help="Do not auto-open the dashboard (best-effort)")
+    parser.add_argument("--no-sync", action="store_true", help="Do not run plan sync")
+    parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard projection")
+    parser.add_argument("--no-open", action="store_true", help="Do not open dashboard")
     args = parser.parse_args()
 
     project_root = resolve_project_root(args.project)
@@ -202,20 +156,18 @@ def main() -> None:
     job_dir = find_job_dir(project_root, wi)
     plan_path = job_dir / "plan.md"
 
-    ts = now_iso()
-
-    # Agreement gate: execution (including completion) requires agreement_status=agreed.
     proj = read_md(project_root / "plan.md")
     agree = str(proj.frontmatter.get("agreement_status") or "").strip()
     if agree != "agreed":
         raise SystemExit("agreement_status must be 'agreed' before job completion (set it in project plan frontmatter).")
 
+    ts = now_iso()
     doc = read_md(plan_path)
     prev_status = str(doc.frontmatter.get("status") or "planned").strip()
-    if prev_status in {"cancelled"}:
+    if prev_status == "cancelled":
         raise SystemExit(f"Cannot complete cancelled job: {wi}")
 
-    # Ensure job has a started_at and at least one iteration.
+    # Ensure runtime metadata exists before gate evaluation.
     if not str(doc.frontmatter.get("started_at") or "").strip():
         doc.frontmatter["started_at"] = ts
     try:
@@ -230,94 +182,159 @@ def main() -> None:
 
     dep_errors = dependency_gate_errors(project_root, doc.frontmatter)
     if dep_errors:
-        ts_dep_fail = now_iso()
-        doc.frontmatter["status"] = "blocked"
-        doc.frontmatter["completed_at"] = ""
-        doc.frontmatter["updated_at"] = ts_dep_fail
-        doc.body = append_section_bullet(
-            doc.body,
-            "# Progress Log",
-            f"{ts_dep_fail} job_complete: FAILED dependency gate; status=blocked; errors: {', '.join(dep_errors[:5])}",
+        dep_note = f"job_complete: dependency gate failed; errors: {', '.join(dep_errors[:5])}"
+        append_progress_if_noop(plan_path, to_status="blocked", note=dep_note)
+        transition_entity(
+            project_root,
+            entity_kind="job",
+            entity_id=wi,
+            to_status="blocked",
+            reason="job complete dependency gate failed",
+            actor="job_complete.py",
+            sync=not args.no_sync,
+            refresh_dashboard=not args.no_dashboard,
+            start_monitor=(not args.no_open),
+            no_open=args.no_open,
+            extra_progress=[dep_note],
         )
-        write_md(plan_path, doc)
-        if not args.no_sync:
-            sync_project_plans(project_root, ts=ts_dep_fail)
         raise SystemExit("Job completion dependency gate failed:\n- " + "\n- ".join(dep_errors))
 
-    # Bring global artifacts up to date before scoring.
-    run_py("task_tracker_build.py", ["--project", str(project_root)])
+    # Update support artifacts prior to gate checks.
+    run_script("task_tracker_build.py", ["--project", str(project_root)], check=True)
     if not args.no_dashboard:
-        run_py("dashboard_build.py", ["--project", str(project_root)])
-    # Capture/refresh dependency snapshot before truth evaluation.
-    run_py_best_effort("input_snapshot.py", ["--project", str(project_root), "--work-item-id", wi])
+        run_script("dashboard_projector.py", ["--project", str(project_root)], check=True)
+    try:
+        run_script("input_snapshot.py", ["--project", str(project_root), "--work-item-id", wi], check=True)
+    except Exception as exc:
+        msg = f"job_complete: input_snapshot failed; blocking completion: {exc}"
+        append_progress_if_noop(plan_path, to_status="blocked", note=msg)
+        transition_entity(
+            project_root,
+            entity_kind="job",
+            entity_id=wi,
+            to_status="blocked",
+            reason="job complete input snapshot failed",
+            actor="job_complete.py",
+            sync=not args.no_sync,
+            refresh_dashboard=not args.no_dashboard,
+            start_monitor=(not args.no_open),
+            no_open=args.no_open,
+            extra_progress=[msg],
+        )
+        raise SystemExit("Job completion input snapshot failed:\n" + str(exc))
 
-    ts_attempt = now_iso()
-    doc = read_md(plan_path)
-    doc.frontmatter["updated_at"] = ts_attempt
-    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts_attempt} job_complete: attempting completion (prev_status={prev_status})")
-    write_md(plan_path, doc)
-
-    # Evaluate reward + truth while still non-done (no tentative done loophole).
-    run_py("reward_eval.py", ["--project", str(project_root), "--no-sync", "--no-dashboard"])
-    run_py("truth_eval.py", ["--project", str(project_root), "--no-sync", "--no-dashboard"])
+    run_script("reward_eval.py", ["--project", str(project_root), "--no-sync", "--no-dashboard"], check=True)
+    run_script("truth_eval.py", ["--project", str(project_root), "--no-sync", "--no-dashboard"], check=True)
 
     errors = gating_errors(project_root, job_dir)
     if errors:
-        # Revert status to in_progress (do not claim done if gates fail).
-        ts_fail = now_iso()
-        doc = read_md(plan_path)
         fail_status = "blocked" if any(e.startswith("dependency gate") or "snapshot stale" in e for e in errors) else "in_progress"
-        doc.frontmatter["status"] = fail_status if prev_status != "done" else prev_status
-        doc.frontmatter["completed_at"] = ""
-        doc.frontmatter["updated_at"] = ts_fail
-        doc.body = append_section_bullet(
-            doc.body,
-            "# Progress Log",
-            f"{ts_fail} job_complete: FAILED gate; reverting to {doc.frontmatter['status']}; errors: {', '.join(errors[:5])}",
+        fail_note = f"job_complete: gate failed; status={fail_status}; errors: {', '.join(errors[:5])}"
+        append_progress_if_noop(plan_path, to_status=fail_status, note=fail_note)
+        transition_entity(
+            project_root,
+            entity_kind="job",
+            entity_id=wi,
+            to_status=fail_status,
+            reason="job complete gate failed",
+            actor="job_complete.py",
+            sync=not args.no_sync,
+            refresh_dashboard=not args.no_dashboard,
+            start_monitor=(not args.no_open),
+            no_open=args.no_open,
+            extra_progress=[fail_note],
         )
-        write_md(plan_path, doc)
-        if not args.no_sync:
-            sync_project_plans(project_root, ts=ts_fail)
         raise SystemExit("Job completion gate failed:\n- " + "\n- ".join(errors))
 
-    # Gates passed; optionally cascade completion upward and then sync artifacts.
-    ts_ok = now_iso()
-    doc = read_md(plan_path)
-    doc.frontmatter["status"] = "done"
-    doc.frontmatter["completed_at"] = ts_ok
-    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts_ok} job_complete: gate PASSED; status=done confirmed")
-    doc.frontmatter["updated_at"] = ts_ok
-    write_md(plan_path, doc)
+    done = transition_entity(
+        project_root,
+        entity_kind="job",
+        entity_id=wi,
+        to_status="done",
+        reason="job completion gates passed",
+        actor="job_complete.py",
+        sync=not args.no_sync,
+        refresh_dashboard=not args.no_dashboard,
+        start_monitor=(not args.no_open),
+        no_open=args.no_open,
+        extra_progress=["job_complete: gate passed; status=done confirmed"],
+    )
+
+    # Refresh reward/truth artifacts after the final done transition so reports reflect terminal state.
+    try:
+        run_script("reward_eval.py", ["--project", str(project_root), "--work-item-id", wi, "--no-sync", "--no-dashboard"], check=True)
+    except Exception as exc:
+        warning = f"job_complete warning: post-done reward_eval failed: {exc}"
+        print(warning, file=sys.stderr)
+        append_progress_note(plan_path, warning)
+    try:
+        run_script("truth_eval.py", ["--project", str(project_root), "--work-item-id", wi, "--no-sync", "--no-dashboard"], check=True)
+    except Exception as exc:
+        warning = f"job_complete warning: post-done truth_eval failed: {exc}"
+        print(warning, file=sys.stderr)
+        append_progress_note(plan_path, warning)
 
     extra_promises: list[str] = []
     if args.cascade:
         ws_dir = parent_workstream_dir(project_root, job_dir)
-        ws_id = try_complete_workstream(project_root, ws_dir, ts=ts_ok)
-        if ws_id:
-            extra_promises.append(f"<promise>{ws_id}-DONE</promise>")
-        proj_id = try_complete_project(project_root, ts=ts_ok)
-        if proj_id:
-            extra_promises.append(f"<promise>{proj_id}-DONE</promise>")
+        ws_doc = read_md(ws_dir / "plan.md")
+        ws_id = str(ws_doc.frontmatter.get("id") or ws_dir.name).strip()
+        ws_status = str(ws_doc.frontmatter.get("status") or "planned").strip()
+        if ws_status not in {"done", "cancelled"} and all_jobs_done(ws_dir):
+            ws_res = transition_entity(
+                project_root,
+                entity_kind="workstream",
+                entity_id=ws_id,
+                to_status="done",
+                reason="cascade after job completion",
+                actor="job_complete.py",
+                sync=not args.no_sync,
+                refresh_dashboard=not args.no_dashboard,
+                start_monitor=False,
+            )
+            if ws_res.promise:
+                extra_promises.append(ws_res.promise)
 
-    # Keep tracker/dashboard consistent with final status.
-    run_py("task_tracker_build.py", ["--project", str(project_root)])
+        proj_status = str(read_md(project_root / "plan.md").frontmatter.get("status") or "planned").strip()
+        if proj_status not in {"done", "cancelled"} and all_workstreams_done(project_root):
+            pj_res = transition_entity(
+                project_root,
+                entity_kind="project",
+                entity_id=None,
+                to_status="done",
+                reason="cascade after workstream completion",
+                actor="job_complete.py",
+                sync=not args.no_sync,
+                refresh_dashboard=not args.no_dashboard,
+                start_monitor=False,
+            )
+            if pj_res.promise:
+                extra_promises.append(pj_res.promise)
 
-    run_py_best_effort(
-        "invalidate_downstream.py",
-        ["--project", str(project_root), "--upstream-work-item-id", wi, "--no-sync", "--no-dashboard"],
-    )
-    run_py_best_effort("orchestrate_plan.py", ["--project", str(project_root)])
-    # Rebuild after invalidation because downstream statuses may have changed.
-    run_py("task_tracker_build.py", ["--project", str(project_root)])
-    if not args.no_sync:
-        sync_project_plans(project_root, ts=ts_ok)
+    # Keep execution plane artifacts in sync.
+    run_script("task_tracker_build.py", ["--project", str(project_root)], check=True)
+    try:
+        run_script(
+            "invalidate_downstream.py",
+            ["--project", str(project_root), "--upstream-work-item-id", wi, "--no-sync", "--no-dashboard"],
+            check=True,
+        )
+    except Exception as exc:
+        warning = f"job_complete warning: invalidate_downstream failed: {exc}"
+        print(warning, file=sys.stderr)
+        append_progress_note(plan_path, warning)
+    try:
+        run_script("orchestrate_plan.py", ["--project", str(project_root)], check=True)
+    except Exception as exc:
+        warning = f"job_complete warning: orchestrate_plan failed: {exc}"
+        print(warning, file=sys.stderr)
+        append_progress_note(plan_path, warning)
+    run_script("task_tracker_build.py", ["--project", str(project_root)], check=True)
     if not args.no_dashboard:
-        run_py("dashboard_build.py", ["--project", str(project_root)])
+        run_script("dashboard_projector.py", ["--project", str(project_root)], check=True)
 
-    if not args.no_open:
-        run_py("dashboard_open.py", ["--project", str(project_root), "--once"])
-
-    print(f"<promise>{wi}-DONE</promise>")
+    if done.promise:
+        print(done.promise)
     for p in extra_promises:
         print(p)
 

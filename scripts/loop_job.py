@@ -530,7 +530,7 @@ def run_job_completion(project_root: Path, wi: str, *, no_open: bool, no_dashboa
 def start_dashboard(project_root: Path, *, no_dashboard: bool, no_open: bool) -> None:
     if no_dashboard:
         return
-    run_py("dashboard_build.py", ["--project", str(project_root)])
+    run_py("dashboard_projector.py", ["--project", str(project_root)])
     if not no_open:
         run_py_best_effort("dashboard_open.py", ["--project", str(project_root), "--once"])
     if not env_no_monitor():
@@ -822,7 +822,7 @@ def main() -> None:
             attempt += 1
             sync_project_plans(project_root, ts=now_iso())
             if not no_dashboard:
-                run_py("dashboard_build.py", ["--project", str(project_root)], check=False)
+                run_py("dashboard_projector.py", ["--project", str(project_root)], check=False)
             continue
 
         if completion_ready(
@@ -876,7 +876,7 @@ def main() -> None:
         attempt += 1
         sync_project_plans(project_root, ts=now_iso())
         if not no_dashboard:
-            run_py("dashboard_build.py", ["--project", str(project_root)], check=False)
+            run_py("dashboard_projector.py", ["--project", str(project_root)], check=False)
 
     elapsed = int(round(time.time() - start_wall))
     final_stopped = last_stopped_at or now_iso()
@@ -947,7 +947,7 @@ def main() -> None:
 
     sync_project_plans(project_root, ts=final_stopped)
     if not no_dashboard:
-        run_py("dashboard_build.py", ["--project", str(project_root)], check=False)
+        run_py("dashboard_projector.py", ["--project", str(project_root)], check=False)
         if not no_open:
             run_py_best_effort("dashboard_open.py", ["--project", str(project_root), "--once"])
 

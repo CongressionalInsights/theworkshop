@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "theworkshop.dashboard.v1",
+  "type": "object",
+  "required": ["schema", "generated_at", "project", "stats", "tokens", "workstreams"],
+  "properties": {
+    "schema": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "project": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "stats": { "type": "object", "additionalProperties": true },
+    "tokens": { "type": "object", "additionalProperties": true },
+    "workstreams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "jobs"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string" },
+          "jobs": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "orchestration": { "type": "object", "additionalProperties": true },
+    "subagents": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

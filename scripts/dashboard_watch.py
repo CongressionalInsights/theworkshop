@@ -74,7 +74,7 @@ def watched_paths(project_root: Path) -> list[Path]:
 
 def run_dashboard_build(project_root: Path) -> tuple[int, str]:
     scripts_dir = Path(__file__).resolve().parent
-    cmd = [sys.executable, str(scripts_dir / "dashboard_build.py"), "--project", str(project_root)]
+    cmd = [sys.executable, str(scripts_dir / "dashboard_projector.py"), "--project", str(project_root)]
     proc = subprocess.run(cmd, text=True, capture_output=True)
     out = (proc.stdout or "") + (proc.stderr or "")
     return int(proc.returncode), out.strip()

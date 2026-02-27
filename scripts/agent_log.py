@@ -20,6 +20,14 @@ def main() -> None:
     parser.add_argument("--status", default="", help="Event status")
     parser.add_argument("--message", default="", help="Free-form message")
     parser.add_argument("--duration-sec", type=float, default=0.0, help="Event duration in seconds")
+    parser.add_argument(
+        "--source",
+        default="manual",
+        choices=["manual", "dispatch", "external"],
+        help="Telemetry source classification.",
+    )
+    parser.add_argument("--dispatch-run-id", default="", help="Dispatch run identifier (optional)")
+    parser.add_argument("--group-index", default="", help="Dispatch group index (optional)")
     parser.add_argument("--timestamp", default="", help="Override timestamp (ISO-8601; default now)")
     parser.add_argument("--out", help="Log file path (default: logs/agents.jsonl)")
     parser.add_argument("--no-dashboard", action="store_true", help="Skip best-effort dashboard rebuild")
@@ -40,6 +48,9 @@ def main() -> None:
         "status": args.status.strip(),
         "message": args.message.strip(),
         "duration_sec": float(args.duration_sec),
+        "source": args.source.strip() or "manual",
+        "dispatch_run_id": args.dispatch_run_id.strip(),
+        "group_index": args.group_index.strip(),
     }
 
     with out_path.open("a", encoding="utf-8") as f:
@@ -48,13 +59,13 @@ def main() -> None:
     if not args.no_dashboard:
         scripts_dir = Path(__file__).resolve().parent
         proc = subprocess.run(
-            [sys.executable, str(scripts_dir / "dashboard_build.py"), "--project", str(project_root)],
+            [sys.executable, str(scripts_dir / "dashboard_projector.py"), "--project", str(project_root)],
             text=True,
             capture_output=True,
             check=False,
         )
         if proc.returncode != 0:
-            print("warning: dashboard_build.py failed after agent-log append", file=sys.stderr)
+            print("warning: dashboard_projector.py failed after agent-log append", file=sys.stderr)
             if proc.stderr:
                 print(proc.stderr, end="", file=sys.stderr)
 

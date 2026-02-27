@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "theworkshop.council.v1",
+  "type": "object",
+  "required": ["schema", "generated_at", "project", "planners", "judge", "final"],
+  "properties": {
+    "schema": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "project": { "type": "string" },
+    "planners": {
+      "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "judge": { "type": "object", "additionalProperties": true },
+    "final": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

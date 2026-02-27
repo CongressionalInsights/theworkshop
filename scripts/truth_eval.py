@@ -531,7 +531,7 @@ def main() -> None:
     if not args.no_dashboard:
         try:
             subprocess.run(
-                ["python3", str(Path(__file__).resolve().parent / "dashboard_build.py"), "--project", str(project_root)],
+                ["python3", str(Path(__file__).resolve().parent / "dashboard_projector.py"), "--project", str(project_root)],
                 check=False,
                 capture_output=True,
                 text=True,

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "theworkshop.orchestration-execution.v1",
+  "type": "object",
+  "required": ["schema", "generated_at", "project", "groups", "summary"],
+  "properties": {
+    "schema": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "project": { "type": "string" },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["group_index", "work_items", "results"],
+        "properties": {
+          "group_index": { "type": "integer" },
+          "work_items": { "type": "array", "items": { "type": "string" } },
+          "results": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "summary": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": true
+}

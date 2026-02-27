@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
-from plan_sync import sync_project_plans
+from transition import transition_entity
 from tw_tools import append_section_bullet, validate_context_gate_for_job
 from twlib import normalize_str_list, now_iso, read_md, resolve_project_root, write_md
 
@@ -34,9 +33,6 @@ def find_job_dir(project_root: Path, wi: str) -> Path:
 
 
 def parent_workstream_dir(project_root: Path, job_dir: Path) -> Path:
-    """
-    job_dir is expected under: <project>/workstreams/<ws>/jobs/<wi>-...
-    """
     try:
         rel = job_dir.relative_to(project_root)
     except Exception:
@@ -63,35 +59,14 @@ def dependency_statuses(project_root: Path, wi_ids: list[str]) -> list[tuple[str
     return out
 
 
-def run_py(script: str, argv: list[str]) -> None:
-    scripts_dir = Path(__file__).resolve().parent
-    cmd = [sys.executable, str(scripts_dir / script)] + argv
-    proc = subprocess.run(cmd, text=True, capture_output=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            "Command failed:\n"
-            f"  cmd={' '.join(cmd)}\n"
-            f"  exit={proc.returncode}\n"
-            f"  stdout:\n{proc.stdout}\n"
-            f"  stderr:\n{proc.stderr}\n"
-        )
-
-def run_py_best_effort(script: str, argv: list[str]) -> None:
-    try:
-        run_py(script, argv)
-    except Exception as e:
-        # Monitoring should never block core execution.
-        print(f"warning: {script} failed (best-effort): {e}", file=sys.stderr)
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Start a TheWorkshop job (set status, timestamps, iteration, sync tables).")
+    parser = argparse.ArgumentParser(description="Start a TheWorkshop job (canonical transition + monitor runtime).")
     parser.add_argument("--project", help="Project root (defaults to nearest parent with plan.md)")
     parser.add_argument("--work-item-id", required=True, help="WI-... to start")
     parser.add_argument("--no-sync", action="store_true", help="Do not run plan_sync after updating the job")
-    parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard build at execution start")
-    parser.add_argument("--no-open", action="store_true", help="Do not auto-open the dashboard (best-effort)")
-    parser.add_argument("--no-monitor", action="store_true", help="Do not start the background dashboard watcher (best-effort)")
+    parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard projector")
+    parser.add_argument("--no-open", action="store_true", help="Do not open dashboard window")
+    parser.add_argument("--no-monitor", action="store_true", help="Do not start monitor runtime")
     parser.add_argument(
         "--allow-unmet-deps",
         action="store_true",
@@ -111,7 +86,6 @@ def main() -> None:
 
     ts = now_iso()
 
-    # Agreement gate: execution requires agreement_status=agreed.
     proj = read_md(project_root / "plan.md")
     agree = str(proj.frontmatter.get("agreement_status") or "").strip()
     if agree != "agreed":
@@ -132,7 +106,6 @@ def main() -> None:
     if prev_status in {"done", "cancelled"}:
         raise SystemExit(f"Cannot start job in status={prev_status!r}: {wi}")
 
-    # Context gate: if context is required for this job, it must exist before execution starts.
     context_errors, context_warnings, context_ref = validate_context_gate_for_job(project_root, plan_path)
     if context_errors:
         raise SystemExit("Context gate failed:\n- " + "\n- ".join(context_errors))
@@ -159,14 +132,13 @@ def main() -> None:
         proj_doc.body = append_decision_log(proj_doc.body, decision)
         proj_doc.frontmatter["updated_at"] = ts
         write_md(project_root / "plan.md", proj_doc)
-        doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} dependency_override: {', '.join(unmet)}; note: {args.decision_note.strip()}")
+        doc.body = append_section_bullet(
+            doc.body,
+            "# Progress Log",
+            f"{ts} dependency_override: {', '.join(unmet)}; note: {args.decision_note.strip()}",
+        )
+        write_md(plan_path, doc)
 
-    # Transition -> in_progress and stamp times.
-    doc.frontmatter["status"] = "in_progress"
-    if not str(doc.frontmatter.get("started_at") or "").strip():
-        doc.frontmatter["started_at"] = ts
-
-    # Iteration is the attempt counter (Ralph-loop friendly).
     try:
         iteration = int(doc.frontmatter.get("iteration") or 0)
     except Exception:
@@ -176,24 +148,35 @@ def main() -> None:
             iteration = 1
         elif prev_status in {"planned", "blocked"}:
             iteration += 1
-    doc.frontmatter["iteration"] = iteration
-    doc.frontmatter["updated_at"] = ts
+
+    extra_progress = [f"job_start: {prev_status} -> in_progress (iteration {iteration})"]
     if context_ref:
-        doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} context gate: using {context_ref}")
-    doc.body = append_section_bullet(doc.body, "# Progress Log", f"{ts} job_start: {prev_status} -> in_progress (iteration {iteration})")
-    write_md(plan_path, doc)
+        extra_progress.insert(0, f"context gate: using {context_ref}")
 
-    if not args.no_sync:
-        sync_project_plans(project_root, ts=ts)
-    run_py_best_effort("orchestrate_plan.py", ["--project", str(project_root)])
+    transition_entity(
+        project_root,
+        entity_kind="job",
+        entity_id=wi,
+        to_status="in_progress",
+        reason="job start",
+        actor="job_start.py",
+        expected_from=prev_status,
+        sync=not args.no_sync,
+        refresh_dashboard=not args.no_dashboard,
+        start_monitor=not args.no_monitor,
+        monitor_policy_override=("manual" if args.no_open else ""),
+        no_open=args.no_open,
+        extra_frontmatter={"iteration": iteration},
+        extra_progress=extra_progress,
+    )
 
-    # Monitoring (best-effort): keep the dashboard current and open it once execution begins.
-    if not args.no_dashboard:
-        run_py("dashboard_build.py", ["--project", str(project_root)])
-    if not args.no_open:
-        run_py("dashboard_open.py", ["--project", str(project_root), "--once"])
-    if not args.no_monitor:
-        run_py_best_effort("dashboard_watch.py", ["--project", str(project_root), "--detach"])
+    # Keep orchestration model refreshed, but never block lifecycle transitions.
+    try:
+        from tw_tools import run_script
+
+        run_script("orchestrate_plan.py", ["--project", str(project_root)], check=True)
+    except Exception:
+        pass
 
     print(wi)
 

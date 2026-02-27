@@ -424,7 +424,7 @@ def main() -> None:
 
     if not args.no_dashboard:
         try:
-            run_script("dashboard_build.py", ["--project", str(project_root)])
+            run_script("dashboard_projector.py", ["--project", str(project_root)])
         except Exception:
             pass
 

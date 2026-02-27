@@ -82,12 +82,12 @@ def main() -> None:
         scripts_dir = Path(__file__).resolve().parent
         try:
             dash = subprocess.run(
-                [sys.executable, str(scripts_dir / "dashboard_build.py"), "--project", str(project_root)],
+                [sys.executable, str(scripts_dir / "dashboard_projector.py"), "--project", str(project_root)],
                 text=True,
                 capture_output=True,
             )
             if dash.returncode != 0:
-                print("warning: dashboard_build.py failed (best-effort).", file=sys.stderr)
+                print("warning: dashboard_projector.py failed (best-effort).", file=sys.stderr)
                 if dash.stderr:
                     print(dash.stderr, end="", file=sys.stderr)
         except Exception as e:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from schema_validate import _validate_target
 from truth_eval import evaluate_job_truth
 from tw_tools import rollup_status, validate_context_gate_for_job
 from twlib import (
@@ -259,6 +260,10 @@ def main() -> None:
     for ws_id, ws_status, ws_dir, _ws_doc in workstreams:
         child_states = [j_status for _wi, j_status, _job_dir, _job_doc in jobs_by_ws.get(ws_id, [])]
         expected_ws = rollup_status(child_states)
+        if ws_status == "cancelled":
+            continue
+        if ws_status == "done" and not child_states:
+            continue
         if ws_status != expected_ws:
             errors.append(
                 f"{rel(project_root, (ws_dir / 'plan.md'))}: status {ws_status!r} inconsistent with job rollup "
@@ -266,7 +271,9 @@ def main() -> None:
             )
 
     expected_project = rollup_status([ws_status for _ws_id, ws_status, _ws_dir, _ws_doc in workstreams])
-    if status != expected_project:
+    if status == "done" and not workstreams:
+        expected_project = "done"
+    if status != "cancelled" and status != expected_project:
         errors.append(
             f"{rel(project_root, project_plan)}: status {status!r} inconsistent with workstream rollup "
             f"{expected_project!r}; run `theworkshop rollup`"
@@ -277,6 +284,19 @@ def main() -> None:
         for ws_id, ws_status, _ws_dir, _ws_doc in workstreams:
             if ws_status != "done":
                 errors.append(f"{rel(project_root, project_plan)}: project done but workstream {ws_id} is {ws_status}")
+
+    # Artifact schema validation (additive compatibility; only validate present artifacts).
+    for target_name in ("orchestration", "dashboard", "truth", "rewards", "orchestration-execution"):
+        result = _validate_target(project_root, target_name, strict_missing=False)
+        if not bool(result.get("present")):
+            continue
+        if bool(result.get("valid")):
+            continue
+        for msg in result.get("errors") or []:
+            errors.append(
+                f"artifact schema [{target_name}] invalid: {msg}; "
+                f"run `theworkshop schema-validate --project {project_root}`"
+            )
 
     # Timestamp sanity warnings
     p_started = parse_time(str(fm.get("started_at") or ""))

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "theworkshop.truth.v1",
+  "type": "object",
+  "required": ["schema", "generated_at", "project", "jobs"],
+  "properties": {
+    "schema": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "project": { "type": "string" },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["work_item_id", "truth_status", "checks", "failures"],
+        "properties": {
+          "work_item_id": { "type": "string" },
+          "truth_status": { "type": "string" },
+          "checks": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "failures": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
