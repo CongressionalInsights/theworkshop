@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Opportunity Map Integration (am-will/codex-skills inspired)
+- Added executable orchestration dispatch:
+  - new `scripts/dispatch_orchestration.py` and CLI `theworkshop dispatch`
+  - executes runnable orchestration groups with dependency checks, bounded parallelism, and structured dispatch telemetry
+  - writes `logs/subagent-dispatch.jsonl` and `outputs/orchestration-execution.json`
+- Added role profile registry + resolver:
+  - `references/agents/{explorer,worker,reviewer}.json`
+  - `scripts/resolve_agent_profile.py` to operationalize `agent_type_hint`, `stakes`, and `orchestration_mode`
+- Added optional council planning flow:
+  - `scripts/council_plan.py` and CLI `theworkshop council-plan`
+  - supports Gemini planner/judge mode by default
+  - supports optional OpenAI planner mode through `$apple-keychain` with `OPENAI_KEY` injected as `OPENAI_API_KEY`
+  - writes `outputs/council/council-plan.json` and `outputs/council/final-plan.md`
+- Added schema hardening:
+  - shipped JSON schemas under `schemas/`
+  - added `scripts/schema_validate.py` and CLI `theworkshop schema-validate`
+  - integrated schema checks into `scripts/plan_check.py` for present machine artifacts
+- Added optional live dashboard transport:
+  - `scripts/dashboard_server.py` and CLI `theworkshop dashboard-serve`
+  - dashboard now supports SSE live mode over HTTP (`/events`) with file polling fallback preserved
+  - dashboard payload/render includes dispatch engine telemetry
+- Added install ergonomics:
+  - `scripts/install_skill.sh` for copy/symlink install into `$CODEX_HOME/skills/theworkshop`
+- Added regression tests:
+  - `scripts/resolve_agent_profile_test.py`
+  - `scripts/dispatch_orchestration_test.py`
+  - `scripts/council_plan_test.py`
+  - `scripts/schema_validate_test.py`
+  - `scripts/dashboard_server_test.py`
+
 ### GSD Pattern Adoptions (TheWorkshop)
 - Added intent-locking flow via `scripts/discuss.py` and CLI `theworkshop discuss`.
   - Captures/locks pre-execution context in `notes/context/<WS-or-WI>-CONTEXT.md`.
@@ -94,6 +124,36 @@
   - clone from `https://github.com/CongressionalInsights/theworkshop.git`
   - install under `$CODEX_HOME/skills/theworkshop`
   - update via `git pull origin main`
+
+## 2026-02-27 (`v0.2.0`)
+
+### Public OSS Baseline Refresh
+- Published the current open-source baseline for `CongressionalInsights/theworkshop` with hardened packaging, updated release operations, and CI validation for critical regression paths.
+- Added `.github/workflows/ci.yml` for push/PR verification (Python syntax + core regression suite).
+- Refreshed release operations guidance in `RELEASE_CHECKLIST.md` for two-step hardening + feature-pack rollout and on-demand release cadence.
+- Added `releases/v0.2.0.md` as the canonical release body for `v0.2.0`.
+
+### Lifecycle and Completion Integrity
+- Canonical transition engine (`transition.py`) governs project/workstream/job state movement, with `done` and `cancelled` as first-class terminal outcomes.
+- Completion pathways remain fail-closed under multi-gate semantics: agreement, dependency/freshness, truth, and reward.
+- Expanded stale invalidation and consistency checks to reduce false completion and drift between plans, status rollups, and downstream dependencies.
+
+### Orchestration and Delegation
+- Shipped executable orchestration dispatch (`dispatch_orchestration.py`) tied to runnable plan groups and dependency-safe scheduling.
+- Added role resolution and optional council planning paths (`resolve_agent_profile.py`, `council_plan.py`) with schema-backed output validation.
+- Preserved dual execution modes (manual and dispatch) while standardizing dashboard semantics around canonical agent telemetry.
+
+### Dashboard, Monitoring, and Spend
+- Reinforced single-writer dashboard projection model and monitor runtime controls for deterministic status visibility.
+- Added readability-first event rendering, concise live activity text, and raw payload details drawers for debug depth.
+- Standardized billing-aware spend display (`subscription_auth|metered_api|unknown`) with API-equivalent estimate surfacing.
+
+### Image and Credential Reliability
+- Kept env-first image credential path (`THEWORKSHOP_IMAGEGEN_API_KEY`) as canonical for OSS portability.
+- Preserved compatibility aliases (`OPENAI_API_KEY`, `OPENAI_KEY`) and optional keychain-based compatibility flows.
+
+### Test Surface
+- Expanded and maintained regression scripts across lifecycle, truth/reward gates, orchestration, dashboard telemetry/readability, billing, and credentials.
 
 ## 2026-02-22 (`v0.1.1`)
 

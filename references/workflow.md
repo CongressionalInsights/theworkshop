@@ -108,6 +108,18 @@ Status fields are not manual-only: run `theworkshop rollup --project <path>` (or
   - else all `{done,cancelled}` => `done`
   - else `planned`
 - Project status from workstreams uses the same precedence.
+- `cancelled` is terminal and explicit; rollups do not auto-overwrite cancelled entities.
+
+### Canonical transition engine (required)
+
+Use `transition.py` as the lifecycle authority for status changes:
+- `project|workstream|job` transitions
+- timestamp updates (`started_at`, `completed_at`, `cancelled_at`, `updated_at`)
+- progress-log append with transition id and reason
+- transition event append to `logs/events.jsonl`
+- project-level `last_transition_id` update
+
+Aliases (`job_start.py`, `job_complete.py`, `workstream_complete.py`, `project_complete.py`, `project_close.py`) are wrappers over the same transition path.
 
 ### Reward gating (required)
 
@@ -150,9 +162,23 @@ Gate interaction:
 
 When the execution loop can run independent jobs in parallel:
 1. Run `orchestrate_plan.py` to produce `outputs/orchestration.json` with deterministic parallel groups and critical path.
-2. If 2 or more runnable independent jobs exist and `subagent_policy != off`, delegate execution to sub-agents (respecting max parallel limits).
-3. Append sub-agent lifecycle events to `logs/agents.jsonl` (`active`, `completed`, `failed` states).
-4. Rebuild dashboard artifacts so orchestration and sub-agent telemetry stays visible.
+2. If 2 or more runnable independent jobs exist and `subagent_policy != off`, run `dispatch_orchestration.py` to execute runnable groups (respecting max parallel limits).
+3. Delegation telemetry contract:
+   - Canonical stream for all delegation paths: `logs/agents.jsonl`
+   - Dispatch compatibility/diagnostic stream: `logs/subagent-dispatch.jsonl`
+   - Dispatch execution summary: `outputs/orchestration-execution.json`
+   - Event fields include additive routing metadata when available: `source`, `dispatch_run_id`, `group_index`
+4. Rebuild dashboard artifacts so orchestration, dispatch, and sub-agent telemetry stays visible.
+
+### Optional council planning mode (pre-agreement)
+
+For high-stakes planning quality:
+1. Run `council_plan.py` before locking agreement.
+2. Default planners use Gemini CLI; OpenAI planners are optional and run through `$apple-keychain` with service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
+3. Review:
+   - `outputs/council/council-plan.json`
+   - `outputs/council/final-plan.md`
+4. Agreement gate remains mandatory after council synthesis.
 
 ### Dashboard updates (required)
 
@@ -160,6 +186,7 @@ Regenerate:
 - `outputs/dashboard.json`
 - `outputs/dashboard.md`
 - `outputs/dashboard.html`
+- via `dashboard_projector.py` (single-writer projector)
 
 Triggers:
 - at execution start
@@ -169,8 +196,10 @@ Triggers:
 
 At execution start (and after completion as needed), TheWorkshop must also **auto-open** the dashboard in a new browser window (best-effort, open-once per session) so the user can follow progress.
 - The HTML auto-refreshes every ~5s by default and can be paused in-page.
+- Optional live mode: run `dashboard_server.py` and open the served URL. The page upgrades to SSE (`/events`) when served over HTTP, with file polling fallback preserved.
 - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
 - TheWorkshop also starts a best-effort background watcher (`dashboard_watch.py`) so the dashboard artifacts keep updating even when no explicit dashboard rebuild trigger fires (opt-out: `THEWORKSHOP_NO_MONITOR=1`).
+- Monitor runtime policy is project-scoped (`monitor_open_policy: always|once|manual`) and managed via `monitor_runtime.py start|stop|status`.
 
 ### Usage + spend telemetry (required)
 

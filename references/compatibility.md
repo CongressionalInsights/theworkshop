@@ -73,7 +73,10 @@ Job-level truth/orchestration:
 - `truth_input_snapshot`
 - `orchestration_mode`
 - `agent_type_hint`
+- `agent_profile`
 - `parallel_group`
+- `dispatch_budget`
+- `retry_limit`
 
 Job-level context/UAT payload:
 - `context_required`

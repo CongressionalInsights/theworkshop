@@ -19,8 +19,13 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - Verification
   - Completion promise: `<promise>{ID}-DONE</promise>` (only emit when objectively true)
 - **Living plans**: plans are updated as the agent works (status, timestamps, progress log).
+- **Canonical transitions**: all lifecycle state changes flow through `transition.py` (single transition engine).
+- **Terminal closure modes**: projects can close as `done` or `cancelled` (both first-class).
 - **Behavior-driving rewards**: jobs are not allowed to be marked `done` until reward targets are met.
+- **Single-writer dashboard projection**: `dashboard_projector.py` is the control-plane writer for dashboard artifacts.
 - **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it in a new browser window** (best-effort) so the user can follow along. The dashboard auto-refreshes every ~5s (pauseable).
+  - Event/task logs are humanized by default for operator readability.
+  - Full raw machine event payloads remain accessible from per-event details drawers.
   - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`
   - Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`
 - **Spend visibility**: dashboard/usage always include token telemetry and cost source metadata.
@@ -37,6 +42,19 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - `THEWORKSHOP_SUBAGENT_POLICY`: override policy (`auto`, `on`, or `off`)
   - `THEWORKSHOP_MAX_PARALLEL_AGENTS`: cap concurrent delegated agents
   - `THEWORKSHOP_NO_SUBAGENTS=1`: hard-disable delegation for tests/headless runs
+- **Dispatch execution control plane**: orchestration output is executable, not advisory.
+  - `dispatch_orchestration.py` consumes `outputs/orchestration.json`, starts runnable jobs, and emits dispatch telemetry.
+  - Canonical telemetry stream: `logs/agents.jsonl` (for both manual and dispatch delegation).
+  - `logs/subagent-dispatch.jsonl` remains compatibility/diagnostic telemetry for dispatch engine traces.
+  - If delegation is done outside dispatch (for example direct tool-level subagents), emit lifecycle events with `agent_log.py` (`source=manual|external`) so dashboard subagent/dispatch panels stay truthful.
+  - Dispatch summary: `outputs/orchestration-execution.json`
+- **Optional council planning mode**: run multi-planner synthesis before agreement lock.
+  - `council_plan.py` uses Gemini CLI planners by default.
+  - OpenAI planners are supported through `$apple-keychain` with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
+  - Council artifacts: `outputs/council/council-plan.json`, `outputs/council/final-plan.md`
+- **Schema hardening**: validate machine artifacts with shipped JSON schemas in `schemas/`.
+  - `schema_validate.py` validates orchestration/truth/rewards/dashboard payloads.
+  - `plan_check.py` enforces schema validity for present machine artifacts.
 - **Image generation first-class**: for image jobs, run `imagegen_job.py` so key retrieval, imagegen execution, output validation, and verification logging are consistent.
   - OSS-first API env: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred and cross-platform)
   - Compatibility env aliases: `OPENAI_API_KEY`, `OPENAI_KEY` (legacy, fallback only)
@@ -103,13 +121,34 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/theworkshop loop --project /path/to/project --work-item-id WI-... --mode promise_or_max --max-loops 5 --completion-promise WI-...-DONE
 
 # Build dashboard artifacts
-{baseDir}/scripts/dashboard_build.py --project /path/to/project
+{baseDir}/scripts/dashboard_projector.py --project /path/to/project
 
 # Open dashboard (best-effort, open-once per session)
 {baseDir}/scripts/dashboard_open.py --project /path/to/project
 
 # Open + keep dashboard live (best-effort)
 {baseDir}/scripts/dashboard_monitor.py --project /path/to/project
+
+# Monitor runtime controls
+{baseDir}/scripts/monitor_runtime.py start --project /path/to/project --policy always
+{baseDir}/scripts/monitor_runtime.py stop --project /path/to/project
+
+# Canonical transition engine
+{baseDir}/scripts/transition.py --project /path/to/project --entity-kind job --entity-id WI-... --to-status in_progress --reason "start"
+{baseDir}/scripts/project_close.py --project /path/to/project --status cancelled --reason "explicit close"
+
+# Optional: serve dashboard over HTTP with SSE live updates
+{baseDir}/scripts/dashboard_server.py --project /path/to/project --open
+
+# Orchestration dispatch (delegated execution)
+{baseDir}/scripts/dispatch_orchestration.py --project /path/to/project
+{baseDir}/scripts/dispatch_orchestration.py --project /path/to/project --dry-run
+
+# Optional council planning before agreement lock
+{baseDir}/scripts/council_plan.py --project /path/to/project --dry-run
+
+# Validate machine artifacts against JSON schemas
+{baseDir}/scripts/schema_validate.py --project /path/to/project
 
 # Run image generation for a WI
 {baseDir}/scripts/imagegen_job.py --project /path/to/project --work-item-id WI-...
