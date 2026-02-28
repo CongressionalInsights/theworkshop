@@ -24,6 +24,27 @@ def existing_lesson_ids(text: str, date: str) -> list[str]:
     return out
 
 
+def _extract_line_value(block: str, prefix: str) -> str:
+    pref = prefix.strip().lower()
+    for ln in block.splitlines():
+        s = ln.strip()
+        if s.lower().startswith(pref):
+            return s.split(":", 1)[1].strip() if ":" in s else ""
+    return ""
+
+
+def _extract_markdown_field(block: str, field: str) -> str:
+    pat = re.compile(
+        rf"\*\*{re.escape(field)}:\*\*\s*(.*?)\s*(?:\n\*\*[A-Za-z ]+:\*\*|\Z)",
+        flags=re.S,
+    )
+    m = pat.search(block)
+    if not m:
+        return ""
+    value = " ".join(m.group(1).strip().split())
+    return value
+
+
 def rebuild_index(lessons_md: Path, index_path: Path) -> None:
     if not lessons_md.exists():
         index_path.write_text(json.dumps({"schema": "theworkshop.lessons.v1", "lessons": []}, indent=2) + "\n")
@@ -40,15 +61,29 @@ def rebuild_index(lessons_md: Path, index_path: Path) -> None:
         if not m:
             continue
         lid = m.group(1)
-        tags = []
-        linked = []
-        for ln in blk.splitlines()[1:20]:
-            if ln.lower().startswith("- applies to:"):
-                tags = [t.strip() for t in ln.split(":", 1)[1].split(",") if t.strip()]
-            if ln.lower().startswith("- linked:"):
-                linked = [t.strip() for t in ln.split(":", 1)[1].split(",") if t.strip()]
+        tags_line = _extract_line_value(blk, "- Applies to:")
+        linked_line = _extract_line_value(blk, "- Linked:")
+        captured_at = _extract_line_value(blk, "- Captured at:")
+        tags = [t.strip() for t in tags_line.split(",") if t.strip()]
+        linked = [t.strip() for t in linked_line.split(",") if t.strip()]
+        context = _extract_markdown_field(blk, "Context")
+        worked = _extract_markdown_field(blk, "What worked")
+        failed = _extract_markdown_field(blk, "What failed")
+        recommendation = _extract_markdown_field(blk, "Recommendation")
         snippet = " ".join(" ".join(blk.splitlines()[0:12]).split())
-        lessons.append({"id": lid, "tags": tags, "linked": linked, "snippet": snippet})
+        lessons.append(
+            {
+                "id": lid,
+                "tags": tags,
+                "linked": linked,
+                "snippet": snippet,
+                "captured_at": captured_at,
+                "context": context,
+                "worked": worked,
+                "failed": failed,
+                "recommendation": recommendation,
+            }
+        )
     payload = {"schema": "theworkshop.lessons.v1", "generated_at": now_iso(), "lessons": lessons}
     index_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

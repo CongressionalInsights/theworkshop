@@ -3,18 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
-from dataclasses import asdict
 from pathlib import Path
 
 from plan_sync import sync_project_plans
 from truth_eval import evaluate_job_truth
 from twlib import (
-    estimate_token_proxy,
     list_job_dirs,
     list_workstream_dirs,
-    load_job,
     normalize_str_list,
     now_iso,
     read_md,
@@ -48,9 +46,105 @@ def looks_placeholder(text: str) -> bool:
         return True
     if "state the objective" in t or "make these objective" in t:
         return True
+    if "auto-populated at job start" in t:
+        return True
     if t.startswith("_") and t.endswith("_") and len(t) < 120:
         return True
     return False
+
+
+def section_bullets(text: str) -> list[str]:
+    out: list[str] = []
+    for ln in (text or "").splitlines():
+        s = ln.strip()
+        if s.startswith("- "):
+            item = s[2:].strip()
+            if item:
+                out.append(item)
+    return out
+
+
+def tokenize(text: str) -> set[str]:
+    out: set[str] = set()
+    for tok in re.findall(r"[a-z0-9]+", (text or "").lower()):
+        if len(tok) >= 3:
+            out.add(tok)
+    return out
+
+
+GENERIC_OBJECTIVE_MARKERS = [
+    "deliver the assigned work item outputs",
+    "project artifacts",
+    "produce declared outputs",
+]
+GENERIC_VERIFICATION_MARKERS = [
+    "run `plan_check.py` after reward evaluation",
+    "confirm output and evidence files remain present and non-empty",
+]
+
+
+def contains_marker(text: str, markers: list[str]) -> bool:
+    t = (text or "").lower()
+    return any(m in t for m in markers)
+
+
+def specificity_score(title: str, objective: str, acceptance: str, verification: str, lessons: str) -> dict:
+    title_tokens = tokenize(title)
+    obj_tokens = tokenize(objective)
+    acc_tokens = tokenize(acceptance)
+    ver_tokens = tokenize(verification)
+
+    score = 0
+    issues: list[str] = []
+
+    if not looks_placeholder(objective):
+        score += 2
+    else:
+        issues.append("objective_placeholder")
+    if not looks_placeholder(acceptance):
+        score += 2
+    else:
+        issues.append("acceptance_placeholder")
+    if not looks_placeholder(verification):
+        score += 2
+    else:
+        issues.append("verification_placeholder")
+    if not looks_placeholder(lessons):
+        score += 1
+    else:
+        issues.append("lessons_placeholder")
+
+    if title_tokens.intersection(obj_tokens):
+        score += 1
+    else:
+        issues.append("objective_not_title_specific")
+
+    bullets = section_bullets(acceptance)
+    if len(bullets) >= 2:
+        score += 1
+    else:
+        issues.append("acceptance_needs_bullets")
+
+    if "artifacts/" in verification or "evidence" in verification.lower():
+        score += 1
+    else:
+        issues.append("verification_missing_evidence_path")
+
+    boilerplate_penalties = 0
+    if contains_marker(objective, GENERIC_OBJECTIVE_MARKERS):
+        boilerplate_penalties += 1
+        issues.append("objective_boilerplate")
+    if contains_marker(verification, GENERIC_VERIFICATION_MARKERS):
+        boilerplate_penalties += 1
+        issues.append("verification_boilerplate")
+    if title_tokens and not title_tokens.intersection(acc_tokens.union(ver_tokens)):
+        issues.append("acceptance_verification_not_title_specific")
+
+    return {
+        "score": max(0, min(10, score)),
+        "issues": issues,
+        "boilerplate_penalties": boilerplate_penalties,
+    }
 
 
 def file_exists_nonempty(path: Path) -> bool:
@@ -100,6 +194,7 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
     acceptance_text = extract_section(doc.body, "# Acceptance Criteria")
     verification_text = extract_section(doc.body, "# Verification")
     lessons_text = extract_section(doc.body, "# Relevant Lessons Learned")
+    objective_text = extract_section(doc.body, "# Objective")
 
     # 0–40: acceptance + outputs
     acceptance_score = 0
@@ -200,6 +295,11 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
             except Exception:
                 pass
 
+    spec = specificity_score(str(fm.get("title") or ""), objective_text, acceptance_text, verification_text, lessons_text)
+    score_s = int(spec.get("score") or 0)
+    spec_issues = [str(x) for x in (spec.get("issues") or [])]
+    spec_boilerplate_penalties = int(spec.get("boilerplate_penalties") or 0)
+
     base = score_a + score_v + score_h + score_td + score_l + score_log + score_gh
 
     # Penalties
@@ -221,6 +321,10 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
     uat_status = str(fm.get("uat_last_status") or "").strip().lower()
     if uat_open_issues or uat_status == "fail":
         penalties -= min(20, 5 + 2 * len(uat_open_issues))
+    if score_s < 5:
+        penalties -= min(6, (5 - score_s) * 2)
+    if spec_boilerplate_penalties > 0:
+        penalties -= min(4, spec_boilerplate_penalties * 2)
 
     total = max(0, min(100, int(round(base + penalties))))
 
@@ -241,6 +345,14 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
     elif evid and len(evid_ok) < len(evid):
         missing = [e for e in evid if e not in evid_ok]
         next_action = "Produce verification evidence: " + ", ".join(missing[:5])
+    elif "objective_placeholder" in spec_issues or "objective_not_title_specific" in spec_issues:
+        next_action = "Rewrite objective with concrete scope/entities tied to the job title."
+    elif "acceptance_placeholder" in spec_issues or "acceptance_needs_bullets" in spec_issues:
+        next_action = "Replace acceptance criteria with 2+ objective, task-specific bullets."
+    elif "verification_placeholder" in spec_issues or "verification_missing_evidence_path" in spec_issues:
+        next_action = "Write verification steps with explicit evidence paths under artifacts/."
+    elif "objective_boilerplate" in spec_issues or "verification_boilerplate" in spec_issues:
+        next_action = "Remove boilerplate phrasing and document task-specific verification checks."
     elif looks_placeholder(acceptance_text):
         next_action = "Tighten acceptance criteria into objective, checkable bullets."
     elif looks_placeholder(verification_text):
@@ -281,7 +393,12 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
             "lessons": score_l,
             "execution_logs": score_log,
             "github_parity": score_gh,
+            "specificity": score_s,
             "penalties": penalties,
+        },
+        "specificity": {
+            "score": score_s,
+            "issues": spec_issues,
         },
         "evidence": {
             "outputs_declared": outputs,

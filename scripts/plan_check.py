@@ -2,18 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from schema_validate import _validate_target
 from truth_eval import evaluate_job_truth
-from tw_tools import rollup_status, validate_context_gate_for_job
+from tw_tools import extract_section, rollup_status, validate_context_gate_for_job
 from twlib import (
     STATUS_VALUES,
     STAKE_VALUES,
     list_job_dirs,
     list_workstream_dirs,
-    load_job,
-    load_workstream,
     normalize_str_list,
     parse_time,
     read_md,
@@ -48,6 +47,91 @@ JOB_HEADINGS = [
     "# Progress Log",
     "# Relevant Lessons Learned",
 ]
+
+
+def looks_placeholder(text: str) -> bool:
+    t = (text or "").strip().lower()
+    if not t:
+        return True
+    if "to be filled" in t:
+        return True
+    if "state the objective" in t or "make these objective" in t:
+        return True
+    if "auto-populated at job start" in t:
+        return True
+    if t.startswith("_") and t.endswith("_") and len(t) < 140:
+        return True
+    return False
+
+
+def section_bullets(text: str) -> list[str]:
+    out: list[str] = []
+    for ln in (text or "").splitlines():
+        s = ln.strip()
+        if s.startswith("- "):
+            item = s[2:].strip()
+            if item:
+                out.append(item)
+    return out
+
+
+GENERIC_OBJECTIVE_MARKERS = [
+    "deliver the assigned work item outputs",
+    "project artifacts",
+    "produce declared outputs",
+]
+GENERIC_VERIFICATION_MARKERS = [
+    "run `plan_check.py` after reward evaluation",
+    "confirm output and evidence files remain present and non-empty",
+]
+
+
+def content_quality_issues(job_doc_body: str, *, strict: bool) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    objective = extract_section(job_doc_body, "# Objective")
+    acceptance = extract_section(job_doc_body, "# Acceptance Criteria")
+    verification = extract_section(job_doc_body, "# Verification")
+    lessons = extract_section(job_doc_body, "# Relevant Lessons Learned")
+
+    objective_placeholder = looks_placeholder(objective)
+    acceptance_placeholder = looks_placeholder(acceptance)
+    verification_placeholder = looks_placeholder(verification)
+    lessons_placeholder = looks_placeholder(lessons)
+
+    acceptance_bullets = section_bullets(acceptance)
+    has_evidence_path = "artifacts/" in verification or "evidence" in verification.lower() or "verification.md" in verification
+
+    objective_boilerplate = any(marker in objective.lower() for marker in GENERIC_OBJECTIVE_MARKERS)
+    verification_boilerplate = any(marker in verification.lower() for marker in GENERIC_VERIFICATION_MARKERS)
+
+    if objective_placeholder:
+        (errors if strict else warnings).append("objective should be task-specific; placeholder text detected")
+    if acceptance_placeholder:
+        (errors if strict else warnings).append("acceptance criteria placeholder detected")
+    if verification_placeholder:
+        (errors if strict else warnings).append("verification section placeholder detected")
+    if lessons_placeholder:
+        (errors if strict else warnings).append("relevant lessons section is empty/placeholder")
+
+    if len(acceptance_bullets) < 2:
+        (errors if strict else warnings).append("acceptance criteria should contain at least two checkable bullets")
+    if not has_evidence_path:
+        (errors if strict else warnings).append("verification should reference concrete evidence files under artifacts/")
+
+    if objective_boilerplate:
+        warnings.append("objective appears to use generic boilerplate wording")
+    if verification_boilerplate:
+        warnings.append("verification appears to use generic boilerplate wording")
+
+    # Additional strictness for running/completed jobs.
+    if strict and len(re.sub(r"\s+", " ", objective).strip()) < 40:
+        errors.append("objective is too short to be considered task-specific")
+    if strict and len(re.sub(r"\s+", " ", verification).strip()) < 40:
+        errors.append("verification is too short to be considered concrete")
+
+    return errors, warnings
 
 
 def heading_missing(body: str, headings: list[str]) -> list[str]:
@@ -163,6 +247,13 @@ def main() -> None:
             missing_job = heading_missing(job_doc.body, JOB_HEADINGS)
             if missing_job:
                 errors.append(f"{rel(project_root, job_plan)}: missing headings: {', '.join(missing_job)}")
+
+            strict_quality = j_status in {"in_progress", "done"}
+            quality_errors, quality_warnings = content_quality_issues(job_doc.body, strict=strict_quality)
+            for msg in quality_errors:
+                errors.append(f"{rel(project_root, job_plan)}: content-quality: {msg}")
+            for msg in quality_warnings:
+                warnings.append(f"{rel(project_root, job_plan)}: content-quality: {msg}")
 
             ctx_errors, ctx_warnings, _ctx_ref = validate_context_gate_for_job(project_root, job_plan)
             if j_status in {"in_progress", "blocked", "done"}:

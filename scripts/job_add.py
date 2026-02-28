@@ -25,6 +25,7 @@ from twyaml import MarkdownDoc
 
 JOB_TABLE_START = "<!-- THEWORKSHOP:JOB_TABLE_START -->"
 JOB_TABLE_END = "<!-- THEWORKSHOP:JOB_TABLE_END -->"
+JOB_PROFILES = ("default", "investigation_attribution", "identity_resolution")
 
 
 def existing_wi_ids(project_root: Path, date: str) -> list[str]:
@@ -50,9 +51,115 @@ def stakes_defaults(stakes: str) -> tuple[int, int]:
     return 80, 3
 
 
-def build_job_plan(wi: str, title: str, *, depends_on: list[str], wave_id: str, stakes: str, estimate_hours: float) -> MarkdownDoc:
+def job_profile_defaults(job_profile: str, wi: str, title: str) -> dict:
+    profile = job_profile.strip().lower()
+    if profile == "investigation_attribution":
+        return {
+            "outputs": [
+                "outputs/candidate_ranked.md",
+                "outputs/deed_hits.csv",
+                "outputs/parcel_hits.csv",
+                "outputs/query_audit.md",
+            ],
+            "verification_evidence": [
+                "artifacts/verification.md",
+                "artifacts/evidence-matrix.md",
+            ],
+            "objective": (
+                f"Determine whether '{title}' yields attributable property linkage using deterministic search "
+                "vectors and explicit collision exclusion."
+            ),
+            "inputs": (
+                "Target entities, county scope, known aliases/shells, and admissible public records constraints."
+            ),
+            "outputs_section": (
+                "Generate ranked attribution findings, machine-readable hit tables, and reproducible query audit logs."
+            ),
+            "acceptance": [
+                "- `outputs/candidate_ranked.md` separates attributable matches, ambiguous candidates, and excluded collisions.",
+                "- `outputs/deed_hits.csv` and `outputs/parcel_hits.csv` contain source URLs and query terms for each row.",
+                "- `outputs/query_audit.md` records endpoints, parameters, timestamps, and result counts.",
+            ],
+            "verification": (
+                "Run `plan_check.py`; verify all declared outputs/evidence are non-empty and every ranked candidate "
+                "maps to source-backed evidence in `artifacts/evidence-matrix.md`."
+            ),
+            "tasks": [
+                "- [ ] Build deterministic query universe and log it",
+                "- [ ] Execute record sweeps and capture non-zero hits",
+                "- [ ] Rank candidates with explicit collision exclusions",
+            ],
+        }
+    if profile == "identity_resolution":
+        return {
+            "outputs": [
+                "outputs/entity-resolution.md",
+                "outputs/name-variant-normalization.md",
+                "outputs/timeline-overlap.md",
+                "outputs/evidence-matrix.md",
+            ],
+            "verification_evidence": [
+                "artifacts/verification.md",
+                "artifacts/source-quality-check.md",
+            ],
+            "objective": (
+                f"Resolve whether '{title}' refers to the same real-world entity by combining name normalization, "
+                "temporal overlap checks, and primary-source corroboration."
+            ),
+            "inputs": "Known aliases, legal/entity names, role records, date windows, and corroborating source documents.",
+            "outputs_section": "Produce an explicit same-entity determination with confidence and disambiguation rationale.",
+            "acceptance": [
+                "- `outputs/name-variant-normalization.md` maps aliases/variants to canonical forms with evidence.",
+                "- `outputs/timeline-overlap.md` documents overlap/non-overlap across key operational periods.",
+                "- `outputs/entity-resolution.md` states same/not-same determination with confidence and cites evidence rows.",
+            ],
+            "verification": (
+                "Run `plan_check.py`; verify each determination claim is supported by entries in `outputs/evidence-matrix.md` "
+                "and quality-rated in `artifacts/source-quality-check.md`."
+            ),
+            "tasks": [
+                "- [ ] Normalize variants and record canonical identities",
+                "- [ ] Build temporal overlap timeline",
+                "- [ ] Publish final same-entity decision with confidence",
+            ],
+        }
+    return {
+        "outputs": ["outputs/primary.md"],
+        "verification_evidence": ["artifacts/verification.md"],
+        "objective": (
+            f"Complete '{title}' with reproducible outputs and evidence that satisfy declared acceptance criteria."
+        ),
+        "inputs": "Project constraints, upstream artifacts, and source references required for this work item.",
+        "outputs_section": "Produce declared outputs in `outputs/` and keep paths aligned with frontmatter declarations.",
+        "acceptance": [
+            "- Declared output files exist and are non-empty.",
+            "- Verification evidence exists and references concrete checks.",
+            f"- Completion criteria for `{wi}` are satisfied without unresolved truth or UAT blockers.",
+        ],
+        "verification": (
+            "Run `plan_check.py` and confirm declared outputs/evidence files remain non-empty after reward evaluation."
+        ),
+        "tasks": [
+            "- [ ] Produce outputs",
+            "- [ ] Capture verification evidence",
+            "- [ ] Re-evaluate gates and update status",
+        ],
+    }
+
+
+def build_job_plan(
+    wi: str,
+    title: str,
+    *,
+    depends_on: list[str],
+    wave_id: str,
+    stakes: str,
+    estimate_hours: float,
+    job_profile: str,
+) -> MarkdownDoc:
     ts = now_iso()
     reward_target, max_iter = stakes_defaults(stakes)
+    profile_defaults = job_profile_defaults(job_profile, wi, title)
     fm = {
         "schema": "theworkshop.plan.v1",
         "kind": "job",
@@ -76,12 +183,9 @@ def build_job_plan(wi: str, title: str, *, depends_on: list[str], wave_id: str, 
         "completion_promise": f"{wi}-DONE",
         "context_required": False,
         "context_ref": "",
-        "outputs": [
-            "outputs/primary.md",
-        ],
-        "verification_evidence": [
-            "artifacts/verification.md",
-        ],
+        "job_profile": job_profile,
+        "outputs": profile_defaults["outputs"],
+        "verification_evidence": profile_defaults["verification_evidence"],
         "reward_last_score": 0,
         "reward_last_eval_at": "",
         "reward_last_next_action": "",
@@ -112,23 +216,23 @@ def build_job_plan(wi: str, title: str, *, depends_on: list[str], wave_id: str, 
         [
             "# Objective",
             "",
-            "_State the objective for this job._",
+            profile_defaults["objective"],
             "",
             "# Inputs",
             "",
-            "_List required inputs (files, links, constraints)._",
+            profile_defaults["inputs"],
             "",
             "# Outputs",
             "",
-            "_List outputs and where they will live (match `outputs:` frontmatter)._",
+            profile_defaults["outputs_section"],
             "",
             "# Acceptance Criteria",
             "",
-            "- _Make these objective and checkable._",
+            *profile_defaults["acceptance"],
             "",
             "# Verification",
             "",
-            "_Describe how we will prove acceptance criteria are satisfied, and what evidence files will be written._",
+            profile_defaults["verification"],
             "",
             "# Success Hook",
             "",
@@ -136,7 +240,7 @@ def build_job_plan(wi: str, title: str, *, depends_on: list[str], wave_id: str, 
             "",
             "# Tasks",
             "",
-            "- [ ] _Optional checklist items_",
+            *profile_defaults["tasks"],
             "",
             "# Progress Log",
             "",
@@ -147,7 +251,7 @@ def build_job_plan(wi: str, title: str, *, depends_on: list[str], wave_id: str, 
             "",
             "# Relevant Lessons Learned",
             "",
-            "_To be filled at job start by lessons retrieval._",
+            "- Auto-populated at job start via `lessons-apply`.",
             "",
         ]
     )
@@ -186,6 +290,12 @@ def main() -> None:
     parser.add_argument("--wave-id", default="", help="Optional wave ID (WV-...)")
     parser.add_argument("--stakes", default="normal", choices=["low", "normal", "high", "critical"], help="Reward stakes")
     parser.add_argument("--estimate-hours", type=float, default=1.0, help="Rough estimate hours (default 1.0)")
+    parser.add_argument(
+        "--job-profile",
+        default="default",
+        choices=list(JOB_PROFILES),
+        help="Template profile for outputs/acceptance/verification scaffolding",
+    )
     args = parser.parse_args()
 
     project_root = resolve_project_root(args.project)
@@ -200,7 +310,18 @@ def main() -> None:
     for d in ["inputs", "outputs", "notes", "logs", "artifacts"]:
         ensure_dir(job_dir / d)
 
-    write_md(job_dir / "plan.md", build_job_plan(wi, args.title, depends_on=args.depends_on, wave_id=args.wave_id, stakes=args.stakes, estimate_hours=args.estimate_hours))
+    write_md(
+        job_dir / "plan.md",
+        build_job_plan(
+            wi,
+            args.title,
+            depends_on=args.depends_on,
+            wave_id=args.wave_id,
+            stakes=args.stakes,
+            estimate_hours=args.estimate_hours,
+            job_profile=args.job_profile,
+        ),
+    )
     (job_dir / "prompt.md").write_text(build_job_prompt(wi, args.title), encoding="utf-8")
 
     # Update workstream plan frontmatter + jobs table
