@@ -64,6 +64,7 @@ Project-level:
 - `max_parallel_agents`
 
 Job-level truth/orchestration:
+- `job_profile`
 - `truth_mode`
 - `truth_checks`
 - `truth_required_commands`
@@ -102,6 +103,15 @@ Additional control-plane artifacts (additive, no `plan.v1` break):
 - `outputs/uat/*-UAT.json|md` (`theworkshop.uat.v1`)
 - `outputs/health.json` (`theworkshop.health.v1`)
 - `quick/*/plan.md` (`theworkshop.quick.v1`)
+
+Lessons index compatibility (additive):
+- `notes/lessons-index.json` may include:
+  - `captured_at`
+  - `context`
+  - `worked`
+  - `failed`
+  - `recommendation`
+- Consumers must continue to accept entries that only contain legacy keys (`id`, `tags`, `linked`, `snippet`).
 
 ## Orchestration Payload Compatibility
 

@@ -33,6 +33,11 @@ Deterministic heuristics to apply:
 - Minimize dependencies; maximize safe parallel groups.
 - Identify critical path (weighted by `estimate_hours`).
 - Rewrite ambiguous acceptance criteria into checkable outcomes and explicit output paths.
+- Choose `job_add --job-profile` deliberately:
+  - `investigation_attribution` for property/attribution sweeps
+  - `identity_resolution` for same-entity determinations
+  - `default` for general jobs
+- For investigative work, acceptance criteria must explicitly separate attributable matches from collisions.
 
 ### Step 4: Intent Lock (`theworkshop discuss`)
 
@@ -110,6 +115,10 @@ Status fields are not manual-only: run `theworkshop rollup --project <path>` (or
 - Project status from workstreams uses the same precedence.
 - `cancelled` is terminal and explicit; rollups do not auto-overwrite cancelled entities.
 
+Plan quality checks:
+- `plan_check.py` emits warnings for weak/placeholder job content while status is `planned`.
+- `plan_check.py` hard-fails weak/placeholder content for jobs in `in_progress` or `done`.
+
 ### Canonical transition engine (required)
 
 Use `transition.py` as the lifecycle authority for status changes:
@@ -121,6 +130,19 @@ Use `transition.py` as the lifecycle authority for status changes:
 
 Aliases (`job_start.py`, `job_complete.py`, `workstream_complete.py`, `project_complete.py`, `project_close.py`) are wrappers over the same transition path.
 
+### Lessons application at start (required default)
+
+`job_start.py` auto-applies ranked lessons into `# Relevant Lessons Learned` before transitioning to `in_progress`.
+
+Controls:
+- `--no-apply-lessons`
+- `--lessons-limit N`
+- `--lessons-include-global`
+
+Default merge policy:
+- Replace placeholder lesson sections.
+- Append non-duplicate lessons for already-populated sections.
+
 ### Reward gating (required)
 
 After each job iteration:
@@ -130,6 +152,10 @@ After each job iteration:
 4. Only mark job `done` and emit `<promise>WI-...-DONE</promise>` when:
    - verification evidence exists, and
    - `reward_last_score >= reward_target`
+
+Content-quality interaction:
+- reward scoring penalizes placeholder/boilerplate sections and weak specificity.
+- next-action hints prioritize objective/acceptance/verification rewrites when quality is low.
 
 ### TruthGate (required)
 

@@ -60,6 +60,10 @@ A job can only transition to `done` when all gates pass:
 3. TruthGate (verification of correctness)
 4. Reward gate (meets `reward_target`)
 
+Execution quality defaults:
+- `job_start.py` auto-applies ranked lessons into `# Relevant Lessons Learned` (override: `--no-apply-lessons`).
+- `plan_check.py` warns on weak placeholder content for `planned` jobs and hard-fails weak content for `in_progress`/`done` jobs.
+
 ## Install
 
 ```bash
@@ -89,6 +93,8 @@ python3 scripts/project_new.py --name "Workshop Demo"
 # add workstream + job
 python3 scripts/workstream_add.py --project /path/to/project --title "Research"
 python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Draft options memo"
+python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Attribution sweep" --job-profile investigation_attribution
+python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Entity resolution" --job-profile identity_resolution
 python3 scripts/discuss.py --project /path/to/project --work-item-id WI-YYYYMMDD-001 --decision "Use concise format" --required --no-interactive
 
 # validate and orchestrate
@@ -101,6 +107,7 @@ python3 scripts/council_plan.py --project /path/to/project --dry-run
 
 # execute one job
 python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
+python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001 --lessons-limit 5 --lessons-include-global
 python3 scripts/verify_work.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
 python3 scripts/job_complete.py --project /path/to/project --work-item-id WI-YYYYMMDD-001 --cascade
 

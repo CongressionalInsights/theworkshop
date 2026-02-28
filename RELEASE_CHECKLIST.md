@@ -1,4 +1,4 @@
-# Release Checklist (`v0.2.0` Baseline)
+# Release Checklist (`v0.2.1` Baseline)
 
 ## 1. Packaging Hygiene (Hardening PR)
 
@@ -42,23 +42,26 @@ python3 scripts/dashboard_subscription_cost_display_test.py
 python3 scripts/imagegen_job_test.py
 python3 scripts/imagegen_keychain_retry_test.py
 python3 scripts/doctor_test.py
+python3 scripts/job_profile_test.py
+python3 scripts/lessons_apply_test.py
+python3 scripts/plan_check_content_quality_test.py
 python3 scripts/smoke_test.py
 python3 scripts/sample_scenario_test.py
 ```
 
-## 4. Release Packaging (`v0.2.0`)
+## 4. Release Packaging (`v0.2.1`)
 
-- [ ] Add/update `releases/v0.2.0.md` with final release notes
-- [ ] Update `CHANGELOG.md` with consolidated `v0.2.0` release section
+- [ ] Add/update `releases/v0.2.1.md` with final release notes
+- [ ] Update `CHANGELOG.md` with consolidated `v0.2.1` release section
 - [ ] Merge feature-pack PR to `main`
 - [ ] Tag and publish release:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
-- [ ] Verify release page body matches `releases/v0.2.0.md`
+- [ ] Verify release page body matches `releases/v0.2.1.md`
 
 ## 5. GitHub Metadata + Triage
 

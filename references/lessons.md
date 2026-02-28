@@ -14,6 +14,7 @@ Optional global library (opt-in):
 Scripts:
 - capture: `scripts/lessons_capture.py`
 - query: `scripts/lessons_query.py`
+- apply: `scripts/lessons_apply.py`
 
 ## Capture Contract
 
@@ -33,10 +34,18 @@ Minimum quality bar:
 
 Retrieve relevant lessons at job start, before significant execution.
 
+Default behavior:
+- `job_start.py` automatically runs lessons application unless `--no-apply-lessons` is provided.
+- Control knobs:
+  - `--lessons-limit N`
+  - `--lessons-include-global`
+
 Insertion point in job plan:
 - `# Relevant Lessons Learned`
 
-The section should summarize the top relevant lessons and how they will be applied in the current job.
+Application policy:
+- If the section is empty/placeholder, replace it with ranked lessons.
+- If the section already contains non-placeholder text, append non-duplicate lessons only.
 
 ## Relevance Ranking Inputs
 
@@ -47,7 +56,12 @@ Recommended ranking signals:
 - linked-ID overlap
 - recency
 
-Current scripted query behavior (`lessons_query.py`) ranks primarily by snippet/query token match and tag overlap, with optional global-library inclusion.
+Current scripted ranking (`lessons_query.py`) is deterministic and combines:
+- text phrase/token match over snippet + context/worked/failed/recommendation
+- tag overlap
+- linked-ID overlap (`WI-*`, `WS-*`, `PJ-*`)
+- recency from `captured_at` (or lesson ID date fallback)
+- deterministic tie-breakers (score, overlap counts, recency, lesson ID)
 
 ## Guardrails
 
