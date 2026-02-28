@@ -135,6 +135,7 @@ started_at: ""
 updated_at: ""
 completed_at: ""
 completion_promise: "WI-YYYYMMDD-###-DONE"
+job_profile: "default"
 context_required: false
 context_ref: ""
 loop_enabled: false
@@ -168,7 +169,7 @@ github_issue_url: ""
 
 # Objective
 
-...
+State a task-specific objective tied to `<job title>` with scope/entity constraints.
 
 # Inputs
 
@@ -176,15 +177,16 @@ github_issue_url: ""
 
 # Outputs
 
-...
+List concrete output paths and keep them aligned with `outputs:` frontmatter.
 
 # Acceptance Criteria
 
-- ...
+- At least 2 objective, checkable bullets.
+- Include any attribution/disambiguation requirements when relevant.
 
 # Verification
 
-How we'll prove acceptance criteria are met.
+Describe deterministic checks and explicit evidence files under `artifacts/`.
 
 # Success Hook
 
@@ -204,8 +206,16 @@ How we'll prove acceptance criteria are met.
 
 # Relevant Lessons Learned
 
-...
+- Auto-populated at job start via `lessons-apply`; keep applied lessons actionable.
 ```
+
+## Job Profile Variants
+
+Use `job_add.py --job-profile` for stronger defaults:
+
+- `default`: single-output general purpose jobs (`outputs/primary.md`).
+- `investigation_attribution`: prefilled for attribution sweeps (`candidate_ranked.md`, hit CSVs, query audit, evidence matrix).
+- `identity_resolution`: prefilled for same-entity analysis (name normalization, timeline overlap, determination report).
 
 ## Job `prompt.md` (Ralph-ready)
 

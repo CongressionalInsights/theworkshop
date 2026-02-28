@@ -91,6 +91,8 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Add workstreams and jobs
 {baseDir}/scripts/workstream_add.py --project /path/to/project --title "Research"
 {baseDir}/scripts/job_add.py --project /path/to/project --workstream WS-... --title "Draft brief" --stakes normal
+{baseDir}/scripts/job_add.py --project /path/to/project --workstream WS-... --title "Attribution sweep" --job-profile investigation_attribution
+{baseDir}/scripts/job_add.py --project /path/to/project --workstream WS-... --title "Entity resolution" --job-profile identity_resolution
 {baseDir}/scripts/discuss.py --project /path/to/project --work-item-id WI-... --decision "Lock key behavior" --required --no-interactive
 
 # Build/update the task tracker (1 row per job)
@@ -110,6 +112,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 
 # Lifecycle helpers (reward-gated completion)
 {baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-...
+{baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-... --lessons-limit 5 --lessons-include-global
 {baseDir}/scripts/verify_work.py --project /path/to/project --work-item-id WI-...
 {baseDir}/scripts/job_complete.py --project /path/to/project --work-item-id WI-... --cascade
 {baseDir}/scripts/workstream_complete.py --project /path/to/project --workstream-id WS-...
@@ -149,6 +152,10 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 
 # Validate machine artifacts against JSON schemas
 {baseDir}/scripts/schema_validate.py --project /path/to/project
+
+# Lessons operations
+{baseDir}/scripts/lessons_query.py --project /path/to/project --query "evidence attribution" --linked WI-... --include-global
+{baseDir}/scripts/lessons_apply.py --project /path/to/project --work-item-id WI-... --limit 5
 
 # Run image generation for a WI
 {baseDir}/scripts/imagegen_job.py --project /path/to/project --work-item-id WI-...

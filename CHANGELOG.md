@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+## 2026-02-28 (`v0.2.1`)
+
+### Lessons Application + Ranking
+- Added `scripts/lessons_apply.py` and CLI alias `theworkshop lessons-apply` for deterministic job-level lessons insertion.
+- `job_start.py` now applies lessons by default before transition to `in_progress`.
+- Added job-start controls:
+  - `--no-apply-lessons`
+  - `--lessons-limit`
+  - `--lessons-include-global`
+- Upgraded lesson ranking (`scripts/lessons_query.py`) to include:
+  - text similarity over snippet/context/worked/failed/recommendation
+  - tag overlap
+  - linked ID overlap (`WI/WS/PJ`)
+  - recency and deterministic tie-breakers
+- Expanded `notes/lessons-index.json` generation (`scripts/lessons_capture.py`) with additive fields:
+  - `captured_at`, `context`, `worked`, `failed`, `recommendation`
+
+### Job Scaffolding Profiles
+- Added `--job-profile {default,investigation_attribution,identity_resolution}` to `scripts/job_add.py`.
+- New profile scaffolds prefill stronger objective/acceptance/verification/output templates for:
+  - attribution sweeps
+  - same-entity/identity resolution workflows
+
+### Content-Quality Gates
+- `scripts/reward_eval.py` now computes specificity diagnostics and applies deterministic penalties for weak/boilerplate sections.
+- `scripts/plan_check.py` now enforces content quality by lifecycle phase:
+  - `planned`: warnings
+  - `in_progress` / `done`: hard failures on placeholder/weak content
+
+### CI + Regression Coverage
+- Added CI execution coverage for:
+  - `scripts/job_profile_test.py`
+  - `scripts/lessons_apply_test.py`
+  - `scripts/plan_check_content_quality_test.py`
+- Added new regression tests for:
+  - profile scaffolding correctness
+  - lessons apply idempotency and opt-out behavior
+  - strict content-quality gate behavior
+
 ### Opportunity Map Integration (am-will/codex-skills inspired)
 - Added executable orchestration dispatch:
   - new `scripts/dispatch_orchestration.py` and CLI `theworkshop dispatch`

@@ -53,10 +53,12 @@ Primary components:
 - Lessons application/capture
 - Execution-log health for the WI
 - GitHub parity (when GitHub mirroring is enabled)
+- Specificity diagnostics (objective/acceptance/verification/lessons quality)
 
 Penalties:
 - repeated rework without improvement
 - iteration budget exceedance
+- low specificity and boilerplate wording in objective/verification sections
 
 ## TruthGate Interaction (Hard Block)
 
@@ -89,12 +91,13 @@ If `iteration > max_iterations`:
 2. truth failures
 3. missing outputs
 4. missing verification evidence
-5. placeholder/weak acceptance criteria
-6. placeholder/weak verification plan
-7. stale/missing dashboard or task tracker artifacts
-8. insufficient execution log evidence
-9. GitHub parity gaps when mirroring is enabled
-10. final QA/log hygiene reminder
+5. weak objective specificity
+6. weak acceptance criteria
+7. weak verification/evidence specificity
+8. stale/missing dashboard or task tracker artifacts
+9. insufficient execution log evidence
+10. GitHub parity gaps when mirroring is enabled
+11. final QA/log hygiene reminder
 
 ## Completion Promise Rule
 
