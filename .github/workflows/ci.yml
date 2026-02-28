@@ -55,6 +55,9 @@ jobs:
             scripts/imagegen_keychain_retry_test.py
             scripts/doctor_test.py
             scripts/schema_validate_test.py
+            scripts/job_profile_test.py
+            scripts/lessons_apply_test.py
+            scripts/plan_check_content_quality_test.py
             scripts/smoke_test.py
             scripts/sample_scenario_test.py
           )

@@ -96,6 +96,7 @@ def main() -> int:
     sub.add_parser("quick", help="Run a short-path ad-hoc task under quick/<id>")
     sub.add_parser("lessons-capture", help="Append a lesson and rebuild index")
     sub.add_parser("lessons-query", help="Query lessons")
+    sub.add_parser("lessons-apply", help="Apply relevant lessons into a job plan")
     sub.add_parser("usage", help="Usage snapshot (tokens/time)")
     sub.add_parser("github-sync", help="GitHub mirroring/sync (opt-in)")
     sub.add_parser("truth-eval", help="Run truth evaluation hooks (placeholder)")
@@ -138,6 +139,7 @@ def main() -> int:
         "quick": "quick.py",
         "lessons-capture": "lessons_capture.py",
         "lessons-query": "lessons_query.py",
+        "lessons-apply": "lessons_apply.py",
         "usage": "usage_snapshot.py",
         "github-sync": "github_sync.py",
         "truth-eval": "truth_eval.py",

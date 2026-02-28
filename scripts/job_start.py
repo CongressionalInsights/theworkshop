@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from lessons_apply import apply_lessons_to_job
 from transition import transition_entity
 from tw_tools import append_section_bullet, validate_context_gate_for_job
 from twlib import normalize_str_list, now_iso, read_md, resolve_project_root, write_md
@@ -67,6 +68,13 @@ def main() -> None:
     parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard projector")
     parser.add_argument("--no-open", action="store_true", help="Do not open dashboard window")
     parser.add_argument("--no-monitor", action="store_true", help="Do not start monitor runtime")
+    parser.add_argument("--no-apply-lessons", action="store_true", help="Skip automatic lessons application at job start")
+    parser.add_argument("--lessons-limit", type=int, default=5, help="Max lessons to apply when job starts")
+    parser.add_argument(
+        "--lessons-include-global",
+        action="store_true",
+        help="Include global lessons library in automatic lessons application",
+    )
     parser.add_argument(
         "--allow-unmet-deps",
         action="store_true",
@@ -139,6 +147,28 @@ def main() -> None:
         )
         write_md(plan_path, doc)
 
+    lesson_progress = ""
+    if not args.no_apply_lessons:
+        try:
+            lesson_result = apply_lessons_to_job(
+                project_root,
+                wi,
+                limit=max(0, int(args.lessons_limit)),
+                include_global=bool(args.lessons_include_global),
+            )
+            applied = [x for x in (lesson_result.get("applied_ids") or []) if str(x).strip()]
+            if applied:
+                lesson_progress = "lessons applied: " + ", ".join(applied[:5])
+            elif str(lesson_result.get("status") or "") == "updated":
+                lesson_progress = "lessons applied: section refreshed"
+            else:
+                lesson_progress = "lessons applied: no matching lessons"
+        except Exception as exc:
+            print(f"warning: lessons_apply failed; continuing without lesson update ({exc})", file=sys.stderr)
+
+    # Reload after optional lessons mutation so iteration/status logic uses current state.
+    doc = read_md(plan_path)
+
     try:
         iteration = int(doc.frontmatter.get("iteration") or 0)
     except Exception:
@@ -152,6 +182,8 @@ def main() -> None:
     extra_progress = [f"job_start: {prev_status} -> in_progress (iteration {iteration})"]
     if context_ref:
         extra_progress.insert(0, f"context gate: using {context_ref}")
+    if lesson_progress:
+        extra_progress.insert(0, lesson_progress)
 
     transition_entity(
         project_root,
