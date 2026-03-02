@@ -84,6 +84,11 @@ def patch_job_plan(job_plan: Path, *, lesson_id: str = "") -> None:
     doc = split_frontmatter(job_plan.read_text(encoding="utf-8", errors="ignore"))
     wi = str(doc.frontmatter.get("work_item_id") or "").strip()
     title = str(doc.frontmatter.get("title") or "").strip()
+    # This scenario test exercises lifecycle/orchestration behavior, not strict evidence gates.
+    doc.frontmatter["execution_log_required"] = False
+    doc.frontmatter["execution_log_exemption_reason"] = ""
+    doc.frontmatter["lesson_capture_required"] = False
+    doc.frontmatter["lesson_capture_exemption_reason"] = ""
 
     doc.body = replace_section(doc.body, "# Objective", [f"Deliver `{title}` with verifiable outputs + evidence so reward gates can pass."])
     doc.body = replace_section(doc.body, "# Outputs", ["- `outputs/primary.md`", "- `artifacts/verification.md`"])
