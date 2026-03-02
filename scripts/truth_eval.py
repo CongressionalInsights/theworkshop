@@ -24,6 +24,8 @@ from twlib import (
 DEFAULT_TRUTH_CHECKS = [
     "exists_nonempty",
     "freshness",
+    "work_item_execution_logged",
+    "linked_lesson_captured",
     "required_command_logged",
     "verification_consistency",
 ]
@@ -52,6 +54,39 @@ def _load_exec_entries(project_root: Path, wi: str) -> list[dict[str, Any]]:
         if str(obj.get("work_item_id") or "").strip() == wi:
             entries.append(obj)
     return entries
+
+
+def _frontmatter_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return default
+
+
+def _load_lessons_index(project_root: Path) -> list[dict[str, Any]]:
+    index_path = project_root / "notes" / "lessons-index.json"
+    if not index_path.exists():
+        return []
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return []
+    items = payload.get("lessons", [])
+    if not isinstance(items, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if isinstance(item, dict):
+            out.append(item)
+    return out
 
 
 def _sha256_file(path: Path) -> str:
@@ -322,6 +357,48 @@ def evaluate_job_truth(project_root: Path, job_dir: Path) -> dict[str, Any]:
             ok, detail = _read_input_snapshot(project_root, job_dir, fm)
             add_check("freshness_inputs", ok, detail)
 
+    if "work_item_execution_logged" in checks:
+        required = _frontmatter_bool(fm.get("execution_log_required"), default=False)
+        exemption_reason = str(fm.get("execution_log_exemption_reason") or "").strip()
+        if exemption_reason:
+            add_check("work_item_execution_logged", True, "execution log requirement exempted: " + exemption_reason)
+        elif not required:
+            add_check("work_item_execution_logged", True, "execution log not required")
+        else:
+            entries = _load_exec_entries(project_root, wi)
+            if entries:
+                add_check("work_item_execution_logged", True, f"execution logs present for {wi}: {len(entries)} entries")
+            else:
+                add_check("work_item_execution_logged", False, f"no execution log entries found for {wi}")
+
+    if "linked_lesson_captured" in checks:
+        required = _frontmatter_bool(fm.get("lesson_capture_required"), default=False)
+        exemption_reason = str(fm.get("lesson_capture_exemption_reason") or "").strip()
+        if exemption_reason:
+            add_check("linked_lesson_captured", True, "lesson capture requirement exempted: " + exemption_reason)
+        elif not required:
+            add_check("linked_lesson_captured", True, "linked lesson capture not required")
+        else:
+            lessons = _load_lessons_index(project_root)
+            wi_norm = wi.strip().upper()
+            matches: list[dict[str, Any]] = []
+            for lesson in lessons:
+                linked = {x.strip().upper() for x in normalize_str_list(lesson.get("linked"))}
+                if wi_norm and wi_norm in linked:
+                    context = str(lesson.get("context") or "").strip()
+                    worked = str(lesson.get("worked") or "").strip()
+                    recommendation = str(lesson.get("recommendation") or "").strip()
+                    if context and worked and recommendation:
+                        matches.append(lesson)
+            if matches:
+                add_check("linked_lesson_captured", True, f"linked lessons with substantive content: {len(matches)}")
+            else:
+                add_check(
+                    "linked_lesson_captured",
+                    False,
+                    f"no linked lesson with context/worked/recommendation found for {wi}",
+                )
+
     if "required_command_logged" in checks:
         required = normalize_str_list(fm.get("truth_required_commands"))
         if not required:
@@ -497,6 +574,10 @@ def main() -> None:
         doc.frontmatter.setdefault("truth_mode", "strict")
         doc.frontmatter.setdefault("truth_checks", list(DEFAULT_TRUTH_CHECKS))
         doc.frontmatter.setdefault("truth_required_commands", [])
+        doc.frontmatter.setdefault("execution_log_required", False)
+        doc.frontmatter.setdefault("execution_log_exemption_reason", "")
+        doc.frontmatter.setdefault("lesson_capture_required", False)
+        doc.frontmatter.setdefault("lesson_capture_exemption_reason", "")
         doc.frontmatter.setdefault("truth_input_snapshot", "artifacts/input-snapshot.json")
         doc.frontmatter["truth_last_status"] = str(result.get("truth_status") or "fail")
         doc.frontmatter["truth_last_checked_at"] = ts

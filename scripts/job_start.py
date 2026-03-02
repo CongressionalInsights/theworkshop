@@ -68,6 +68,12 @@ def main() -> None:
     parser.add_argument("--no-dashboard", action="store_true", help="Skip dashboard projector")
     parser.add_argument("--no-open", action="store_true", help="Do not open dashboard window")
     parser.add_argument("--no-monitor", action="store_true", help="Do not start monitor runtime")
+    parser.add_argument(
+        "--monitor-policy",
+        choices=["always", "once", "manual"],
+        default="",
+        help="Optional persistent monitor_open_policy override for this project.",
+    )
     parser.add_argument("--no-apply-lessons", action="store_true", help="Skip automatic lessons application at job start")
     parser.add_argument("--lessons-limit", type=int, default=5, help="Max lessons to apply when job starts")
     parser.add_argument(
@@ -196,7 +202,7 @@ def main() -> None:
         sync=not args.no_sync,
         refresh_dashboard=not args.no_dashboard,
         start_monitor=not args.no_monitor,
-        monitor_policy_override=("manual" if args.no_open else ""),
+        monitor_policy_override=args.monitor_policy,
         no_open=args.no_open,
         extra_frontmatter={"iteration": iteration},
         extra_progress=extra_progress,

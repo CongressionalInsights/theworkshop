@@ -30,6 +30,10 @@ Job frontmatter should include:
 - `reward_last_score`
 - `reward_last_eval_at`
 - `reward_last_next_action`
+- `execution_log_required`
+- `execution_log_exemption_reason`
+- `lesson_capture_required`
+- `lesson_capture_exemption_reason`
 
 Status vocabulary remains fixed:
 - `planned | in_progress | blocked | done | cancelled`
@@ -95,9 +99,10 @@ If `iteration > max_iterations`:
 6. weak acceptance criteria
 7. weak verification/evidence specificity
 8. stale/missing dashboard or task tracker artifacts
-9. insufficient execution log evidence
-10. GitHub parity gaps when mirroring is enabled
-11. final QA/log hygiene reminder
+9. missing required execution log evidence
+10. missing required linked lesson capture
+11. GitHub parity gaps when mirroring is enabled
+12. final QA/log hygiene reminder
 
 ## Completion Promise Rule
 

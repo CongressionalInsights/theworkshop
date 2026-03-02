@@ -47,6 +47,11 @@ Application policy:
 - If the section is empty/placeholder, replace it with ranked lessons.
 - If the section already contains non-placeholder text, append non-duplicate lessons only.
 
+Strict completion contract for new jobs:
+- `lesson_capture_required: true` by default.
+- At least one substantive lesson linked to the WI must exist in `notes/lessons-index.json` (`context`, `worked`, and `recommendation` non-empty).
+- If not applicable, set `lesson_capture_exemption_reason` with explicit rationale.
+
 ## Relevance Ranking Inputs
 
 Recommended ranking signals:

@@ -23,6 +23,15 @@ Once execution begins, TheWorkshop must:
 Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
 Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`.
 
+Policy precedence:
+- runtime env opt-outs (`THEWORKSHOP_NO_OPEN`, `THEWORKSHOP_NO_MONITOR`)
+- CLI runtime flags (`--no-open`, `--no-watch`)
+- project policy (`monitor_open_policy: always|once|manual`)
+
+Notes:
+- `job_start.py --no-open` is ephemeral and does not persist `monitor_open_policy`.
+- Use `job_start.py --monitor-policy ...` or `monitor_runtime.py start --policy ...` to persist project policy intentionally.
+
 ## Required fields
 
 The dashboard must include:

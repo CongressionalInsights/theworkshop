@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -73,6 +74,64 @@ def section_bullets(text: str) -> list[str]:
             if item:
                 out.append(item)
     return out
+
+
+def frontmatter_bool(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return default
+
+
+def wi_exec_entries(project_root: Path, wi: str) -> list[dict]:
+    log_path = project_root / "logs" / "execution.jsonl"
+    if not log_path.exists():
+        return []
+    out: list[dict] = []
+    for raw in log_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            item = json.loads(raw)
+        except Exception:
+            continue
+        if str(item.get("work_item_id") or "").strip() == wi:
+            out.append(item)
+    return out
+
+
+def has_substantive_linked_lesson(project_root: Path, wi: str) -> bool:
+    index_path = project_root / "notes" / "lessons-index.json"
+    if not index_path.exists():
+        return False
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return False
+    lessons = payload.get("lessons", [])
+    if not isinstance(lessons, list):
+        return False
+    wi_norm = wi.strip().upper()
+    for lesson in lessons:
+        if not isinstance(lesson, dict):
+            continue
+        linked = {x.strip().upper() for x in normalize_str_list(lesson.get("linked"))}
+        if wi_norm and wi_norm in linked:
+            context = str(lesson.get("context") or "").strip()
+            worked = str(lesson.get("worked") or "").strip()
+            recommendation = str(lesson.get("recommendation") or "").strip()
+            if context and worked and recommendation:
+                return True
+    return False
 
 
 GENERIC_OBJECTIVE_MARKERS = [
@@ -301,6 +360,23 @@ def main() -> None:
                     p = job_dir / str(ev_rel)
                     if not p.exists() or not p.is_file() or p.stat().st_size <= 0:
                         errors.append(f"{rel(project_root, job_plan)}: missing/empty verification evidence {ev_rel}")
+
+                execution_required = frontmatter_bool(jfm.get("execution_log_required"), default=False)
+                execution_exemption = str(jfm.get("execution_log_exemption_reason") or "").strip()
+                if execution_required and not execution_exemption:
+                    entries = wi_exec_entries(project_root, wi)
+                    if not entries:
+                        errors.append(
+                            f"{rel(project_root, job_plan)}: execution_log_required=true but no logs/execution.jsonl entries for {wi}"
+                        )
+
+                lesson_required = frontmatter_bool(jfm.get("lesson_capture_required"), default=False)
+                lesson_exemption = str(jfm.get("lesson_capture_exemption_reason") or "").strip()
+                if lesson_required and not lesson_exemption:
+                    if not has_substantive_linked_lesson(project_root, wi):
+                        errors.append(
+                            f"{rel(project_root, job_plan)}: lesson_capture_required=true but no substantive linked lesson for {wi}"
+                        )
 
                 truth = evaluate_job_truth(project_root, job_dir)
                 truth_status = str(truth.get("truth_status") or "fail")
