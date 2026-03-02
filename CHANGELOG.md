@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+## 2026-03-02 (`v0.2.2`)
+
+### Monitor Policy Hardening
+- `job_start.py --no-open` is now runtime-only and no longer persists `monitor_open_policy=manual`.
+- Added explicit persistent monitor policy override:
+  - `job_start.py --monitor-policy always|once|manual`
+- Dashboard docs now clarify policy precedence and persistent-vs-ephemeral behavior.
+
+### Strict Completion Evidence Gates (Forward Strict)
+- New jobs created by `scripts/job_add.py` now default to strict completion evidence requirements:
+  - `execution_log_required: true`
+  - `execution_log_exemption_reason: ""`
+  - `lesson_capture_required: true`
+  - `lesson_capture_exemption_reason: ""`
+- New truth checks added and enabled by default for new jobs:
+  - `work_item_execution_logged`
+  - `linked_lesson_captured`
+- `scripts/truth_eval.py` now enforces:
+  - WI execution evidence presence in `logs/execution.jsonl` (or explicit exemption),
+  - linked substantive lesson capture in `notes/lessons-index.json` (or explicit exemption).
+
+### Plan/Reward Alignment
+- `scripts/plan_check.py` now rejects `done` jobs that require execution logs or linked lessons when those requirements are unmet and not exempted.
+- `scripts/reward_eval.py` now emits deterministic next actions for:
+  - missing required execution evidence,
+  - missing required linked lesson capture.
+
+### Compatibility
+- Legacy jobs remain backward compatible:
+  - jobs without the new requirement fields are treated as non-strict unless explicitly opted in.
+
+### Regression Coverage and Docs
+- Added:
+  - `scripts/job_start_monitor_policy_test.py`
+  - `scripts/strict_completion_requirements_test.py`
+- Updated:
+  - `scripts/required_command_logged_test.py`
+- Updated operator/reference docs:
+  - `SKILL.md`
+  - `references/workflow.md`
+  - `references/dashboard.md`
+  - `references/lessons.md`
+  - `references/rewards.md`
+
 ## 2026-02-28 (`v0.2.1`)
 
 ### Lessons Application + Ranking

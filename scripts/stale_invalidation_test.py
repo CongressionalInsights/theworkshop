@@ -72,6 +72,11 @@ def patch_job_plan(job_plan: Path, wi: str) -> None:
     doc.frontmatter["outputs"] = ["outputs/primary.md"]
     doc.frontmatter["verification_evidence"] = ["artifacts/verification.md"]
     doc.frontmatter["truth_required_commands"] = []
+    # This test focuses on stale invalidation behavior, not strict evidence gates.
+    doc.frontmatter["execution_log_required"] = False
+    doc.frontmatter["execution_log_exemption_reason"] = ""
+    doc.frontmatter["lesson_capture_required"] = False
+    doc.frontmatter["lesson_capture_exemption_reason"] = ""
     doc.body = replace_section(doc.body, "# Objective", ["Produce a stable output file."])
     doc.body = replace_section(doc.body, "# Outputs", ["- `outputs/primary.md`"])
     doc.body = replace_section(

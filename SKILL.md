@@ -26,8 +26,11 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it in a new browser window** (best-effort) so the user can follow along. The dashboard auto-refreshes every ~5s (pauseable).
   - Event/task logs are humanized by default for operator readability.
   - Full raw machine event payloads remain accessible from per-event details drawers.
+  - `job_start.py --no-open` is runtime-only and does not persist `monitor_open_policy`.
+  - To persist policy intentionally, pass `job_start.py --monitor-policy always|once|manual`.
   - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`
   - Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`
+- **Strict completion defaults for new jobs**: execution evidence and linked lessons are required unless explicit exemption reasons are recorded in job frontmatter.
 - **Spend visibility**: dashboard/usage always include token telemetry and cost source metadata.
   - If CodexBar provides cost, treat as exact (`cost_source=codexbar_exact`, high confidence).
   - Otherwise estimate from session-token usage using `references/token-rates.json` (`cost_source=estimated_from_rates`).
@@ -113,6 +116,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Lifecycle helpers (reward-gated completion)
 {baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-...
 {baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-... --lessons-limit 5 --lessons-include-global
+{baseDir}/scripts/job_start.py --project /path/to/project --work-item-id WI-... --monitor-policy manual
 {baseDir}/scripts/verify_work.py --project /path/to/project --work-item-id WI-...
 {baseDir}/scripts/job_complete.py --project /path/to/project --work-item-id WI-... --cascade
 {baseDir}/scripts/workstream_complete.py --project /path/to/project --workstream-id WS-...

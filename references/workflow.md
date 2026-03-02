@@ -138,6 +138,7 @@ Controls:
 - `--no-apply-lessons`
 - `--lessons-limit N`
 - `--lessons-include-global`
+- `--monitor-policy always|once|manual` (persistent monitor policy override)
 
 Default merge policy:
 - Replace placeholder lesson sections.
@@ -165,6 +166,11 @@ Before claiming a job passed verification, run TruthGate checks and persist resu
 - `truth_last_checked_at`: timestamp of the latest TruthGate run
 
 TruthGate must be current with the latest job artifacts. If TruthGate fails, the job remains `in_progress` (or `blocked`) until failures are resolved.
+
+Strict defaults for newly created jobs:
+- execution evidence is required (`execution_log_required: true`) unless `execution_log_exemption_reason` is set.
+- linked lesson capture is required (`lesson_capture_required: true`) unless `lesson_capture_exemption_reason` is set.
+- Truth checks enforce these requirements with `work_item_execution_logged` and `linked_lesson_captured`.
 
 ### Verify Work / UAT (recommended)
 
@@ -224,6 +230,8 @@ At execution start (and after completion as needed), TheWorkshop must also **aut
 - The HTML auto-refreshes every ~5s by default and can be paused in-page.
 - Optional live mode: run `dashboard_server.py` and open the served URL. The page upgrades to SSE (`/events`) when served over HTTP, with file polling fallback preserved.
 - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
+- `job_start.py --no-open` is runtime-only and does not mutate project `monitor_open_policy`.
+- Persist monitor policy intentionally with `job_start.py --monitor-policy always|once|manual` (or `monitor_runtime.py start --policy ...`).
 - TheWorkshop also starts a best-effort background watcher (`dashboard_watch.py`) so the dashboard artifacts keep updating even when no explicit dashboard rebuild trigger fires (opt-out: `THEWORKSHOP_NO_MONITOR=1`).
 - Monitor runtime policy is project-scoped (`monitor_open_policy: always|once|manual`) and managed via `monitor_runtime.py start|stop|status`.
 

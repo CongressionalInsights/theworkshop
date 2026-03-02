@@ -64,6 +64,46 @@ def section_bullets(text: str) -> list[str]:
     return out
 
 
+def frontmatter_bool(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off", ""}:
+        return False
+    return default
+
+
+def has_substantive_linked_lesson(project_root: Path, wi: str) -> bool:
+    index_path = project_root / "notes" / "lessons-index.json"
+    if not index_path.exists():
+        return False
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return False
+    lessons = payload.get("lessons", [])
+    if not isinstance(lessons, list):
+        return False
+    wi_norm = wi.strip().upper()
+    for lesson in lessons:
+        if not isinstance(lesson, dict):
+            continue
+        linked = {x.strip().upper() for x in normalize_str_list(lesson.get("linked"))}
+        if wi_norm and wi_norm in linked:
+            context = str(lesson.get("context") or "").strip()
+            worked = str(lesson.get("worked") or "").strip()
+            recommendation = str(lesson.get("recommendation") or "").strip()
+            if context and worked and recommendation:
+                return True
+    return False
+
+
 def tokenize(text: str) -> set[str]:
     out: set[str] = set()
     for tok in re.findall(r"[a-z0-9]+", (text or "").lower()):
@@ -281,6 +321,12 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
         fail_rate = len(failures) / max(1, len(wi_entries))
         score_log += round(5 * (1.0 - fail_rate))
 
+    execution_required = frontmatter_bool(fm.get("execution_log_required"), default=False)
+    execution_exemption = str(fm.get("execution_log_exemption_reason") or "").strip()
+    lesson_required = frontmatter_bool(fm.get("lesson_capture_required"), default=False)
+    lesson_exemption = str(fm.get("lesson_capture_exemption_reason") or "").strip()
+    linked_lesson_ok = has_substantive_linked_lesson(project_root, wi) if wi else False
+
     # 0–5: GitHub parity (best-effort)
     score_gh = 0
     proj = read_md(project_root / "plan.md")
@@ -361,6 +407,16 @@ def compute_job_score(project_root: Path, job_dir: Path) -> dict:
         next_action = "Run dashboard_projector.py to refresh dashboard artifacts."
     elif not tracker:
         next_action = "Run scripts/task_tracker_build.py to generate outputs/*-task-tracker.csv, then rerun reward eval."
+    elif execution_required and not execution_exemption and not wi_entries:
+        next_action = (
+            f"Run commands via scripts/ws_run with --work-item-id {wi} to capture execution evidence, "
+            "or set execution_log_exemption_reason."
+        )
+    elif lesson_required and not lesson_exemption and not linked_lesson_ok:
+        next_action = (
+            f"Capture a linked lesson for {wi} via scripts/lessons_capture.py --linked {wi}, "
+            "or set lesson_capture_exemption_reason."
+        )
     elif not wi_entries:
         next_action = "Run commands via scripts/ws_run with --work-item-id to capture execution evidence."
     elif bool(proj.frontmatter.get("github_enabled")) and score_gh == 0:
