@@ -15,9 +15,9 @@ def main() -> None:
     mode, reason, conf = resolve_billing_mode(
         {
             "source": "codex_session_logs",
-            "rateLimitId": "codex_bengalfox",
-            "rateLimitName": "GPT-5.3-Codex-Spark",
-            "detectedModel": "gpt-5.3-codex",
+            "rateLimitId": "codex",
+            "rateLimitName": "GPT-5.4",
+            "detectedModel": "gpt-5.4",
         },
         None,
     )

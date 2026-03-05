@@ -18,7 +18,7 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
     sessions_dir.mkdir(parents=True, exist_ok=True)
     log_path = sessions_dir / f"rollout-2026-02-16T10-00-00-{session_id}.jsonl"
     lines = [
-        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.3-codex"}},
+        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.4"}},
         {
             "timestamp": "2026-02-16T10:00:02.000Z",
             "type": "event_msg",
@@ -35,7 +35,7 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
                     "last_token_usage": {"total_tokens": 123},
                     "model_context_window": 258400,
                 },
-                "rate_limits": {"limit_id": "codex_bengalfox", "limit_name": "GPT-5.3-Codex-Spark"},
+                "rate_limits": {"limit_id": "codex", "limit_name": "GPT-5.4"},
             },
         },
     ]

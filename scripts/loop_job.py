@@ -531,10 +531,12 @@ def start_dashboard(project_root: Path, *, no_dashboard: bool, no_open: bool) ->
     if no_dashboard:
         return
     run_py("dashboard_projector.py", ["--project", str(project_root)])
-    if not no_open:
-        run_py_best_effort("dashboard_open.py", ["--project", str(project_root), "--once"])
-    if not env_no_monitor():
-        run_py_best_effort("dashboard_watch.py", ["--project", str(project_root)])
+    rt_args = ["start", "--project", str(project_root)]
+    if no_open:
+        rt_args.append("--no-open")
+    if env_no_monitor():
+        rt_args.append("--no-watch")
+    run_py_best_effort("monitor_runtime.py", rt_args)
 
 
 def parse_args() -> argparse.Namespace:
@@ -948,8 +950,6 @@ def main() -> None:
     sync_project_plans(project_root, ts=final_stopped)
     if not no_dashboard:
         run_py("dashboard_projector.py", ["--project", str(project_root)], check=False)
-        if not no_open:
-            run_py_best_effort("dashboard_open.py", ["--project", str(project_root), "--once"])
 
     if loop_done:
         print(

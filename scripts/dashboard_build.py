@@ -837,16 +837,17 @@ def truth_class(status: str) -> str:
 def _render_dashboard_css() -> str:
     return """
 :root {
-  --bg: #f2efe8;
-  --bg-hi: #f9f6f1;
-  --panel: rgba(255, 253, 249, 0.9);
-  --panel-solid: #fffcf8;
-  --ink: #18222c;
-  --muted: #526170;
-  --line: #d7d0c4;
-  --line-strong: #c6bcac;
-  --accent: #0f6b5d;
-  --accent-soft: rgba(15, 107, 93, 0.12);
+  --bg: #eef3f1;
+  --bg-hi: #f7faf9;
+  --panel: rgba(251, 253, 252, 0.96);
+  --panel-solid: #fbfdfc;
+  --surface: #f3f7f5;
+  --ink: #12202b;
+  --muted: #5f6c77;
+  --line: #d4dee2;
+  --line-strong: #b9c9cf;
+  --accent: #0a6a63;
+  --accent-soft: rgba(10, 106, 99, 0.1);
   --risk: #a5372f;
   --risk-soft: rgba(165, 55, 47, 0.14);
   --planned: #6b7280;
@@ -858,46 +859,45 @@ def _render_dashboard_css() -> str:
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; min-height: 100vh; }
 body {
-  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 12% 8%, #efe6d6 0%, transparent 34%),
-    radial-gradient(circle at 88% 2%, #ddebe4 0%, transparent 30%),
-    linear-gradient(rgba(35, 52, 68, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(35, 52, 68, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at 14% 10%, rgba(202, 223, 217, 0.72) 0%, transparent 34%),
+    radial-gradient(circle at 86% 0%, rgba(221, 231, 241, 0.85) 0%, transparent 32%),
+    linear-gradient(rgba(32, 57, 74, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(32, 57, 74, 0.03) 1px, transparent 1px),
     linear-gradient(180deg, var(--bg-hi) 0%, var(--bg) 72%);
-  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px, 100% 100%;
-  padding-bottom: 56px;
+  background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px, 100% 100%;
 }
 .wrap {
-  max-width: 1340px;
+  max-width: 1460px;
   margin: 0 auto;
-  padding: 20px 18px 26px;
+  padding: 22px 20px 32px;
 }
-h1 { margin: 0; font-size: 34px; letter-spacing: .2px; }
-h2 { margin: 24px 0 10px; font-size: 20px; letter-spacing: .18px; }
-h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: .1px; }
-h4 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+h1 { margin: 0; font-size: 34px; letter-spacing: -.02em; }
+h2 { margin: 20px 0 10px; font-size: 20px; letter-spacing: -.01em; }
+h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: .01em; }
+h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 p { margin: 6px 0; }
 ul { margin: 8px 0 0 18px; }
 code {
-  background: #f1ede5;
-  border: 1px solid #e0d8ca;
+  background: #f4f7f8;
+  border: 1px solid #dbe5e8;
   border-radius: 6px;
   padding: 2px 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   font-size: 12px;
 }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; }
+.mono, code, .chip-count, .metric .value, .summary-stat b { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .card {
   background: var(--panel);
-  backdrop-filter: blur(10px);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 14px;
-  box-shadow: 0 6px 24px rgba(25, 33, 47, 0.04), inset 0 1px 0 rgba(255,255,255,0.6);
-  animation: cardIn .24s ease-out both;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.8), 0 10px 24px rgba(16, 29, 38, 0.04);
+  animation: cardIn .22s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -905,22 +905,21 @@ code {
 }
 .monitor {
   position: sticky;
-  top: 10px;
+  top: 12px;
   z-index: 25;
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 252, 247, 0.86);
-  backdrop-filter: blur(11px);
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: rgba(248, 252, 251, 0.96);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 .monitor .group {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -928,15 +927,15 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #f1ede5;
+  background: var(--surface);
   font-size: 12px;
   line-height: 1.6;
 }
-.badge-on { border-color: rgba(15,107,93,0.35); background: rgba(15,107,93,0.10); }
-.badge-off { border-color: rgba(95,107,117,0.35); background: rgba(95,107,117,0.12); }
+.badge-on { border-color: rgba(10,106,99,0.35); background: rgba(10,106,99,0.10); }
+.badge-off { border-color: rgba(95,107,117,0.35); background: rgba(95,107,117,0.10); }
 .badge-stale {
   border-color: rgba(180,35,24,0.35);
   background: rgba(180,35,24,0.10);
@@ -947,38 +946,71 @@ code {
 button, .btn {
   appearance: none;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 6px 10px;
-  background: #fff;
+  background: var(--panel-solid);
   color: var(--ink);
   font-size: 12px;
   line-height: 1.2;
   cursor: pointer;
   transition: border-color .18s ease, background-color .18s ease, transform .12s ease, color .18s ease;
 }
-button:hover, .btn:hover { border-color: rgba(15,107,93,0.50); }
+button:hover, .btn:hover { border-color: rgba(10,106,99,0.45); background: #fff; }
 button:active, .btn:active { transform: translateY(1px); }
-button:focus-visible, .btn:focus-visible,
-input:focus-visible {
-  outline: 2px solid rgba(15,107,93,0.35);
+button:focus-visible, .btn:focus-visible, input:focus-visible {
+  outline: 2px solid rgba(10,106,99,0.28);
   outline-offset: 2px;
 }
 .hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
-  margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  gap: 12px;
+  margin-bottom: 12px;
 }
-.hero .project-line {
+.hero-title-row, .hero .project-line {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
+.hero-copy {
+  max-width: 760px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.hero-meta, .summary-grid {
+  display: grid;
+  gap: 10px;
+}
+.summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.summary-kicker {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.summary-stat b {
+  display: block;
+  font-size: 24px;
+  line-height: 1.1;
+  margin-bottom: 3px;
+}
+.summary-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
 .pill {
   display: inline-block;
-  padding: 2px 9px;
+  padding: 3px 9px;
   border-radius: 999px;
   color: white;
   font-size: 12px;
@@ -1004,9 +1036,6 @@ input:focus-visible {
 .truth-fail { background: rgba(180, 35, 24, 0.14); color: #9a2418; }
 .truth-unknown { background: rgba(95, 107, 117, 0.14); color: #3f4a54; }
 .command-bar {
-  position: sticky;
-  top: 74px;
-  z-index: 20;
   margin-bottom: 12px;
 }
 .command-grid {
@@ -1020,7 +1049,7 @@ input:focus-visible {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   padding: 7px 10px;
 }
@@ -1051,13 +1080,13 @@ input:focus-visible {
 }
 .focus-btn.is-active {
   background: var(--accent);
-  border-color: rgba(15,107,93,0.45);
+  border-color: rgba(10,106,99,0.45);
   color: #fff;
 }
 .chip {
   border-radius: 999px;
   padding: 5px 10px;
-  background: #fff;
+  background: var(--panel-solid);
   border: 1px solid var(--line);
   font-size: 12px;
   display: inline-flex;
@@ -1065,7 +1094,7 @@ input:focus-visible {
   gap: 6px;
 }
 .chip.is-on {
-  border-color: rgba(15,107,93,0.42);
+  border-color: rgba(10,106,99,0.42);
   background: var(--accent-soft);
 }
 .chip .chip-count {
@@ -1076,25 +1105,69 @@ input:focus-visible {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
   font-size: 11px;
 }
+.execution-band {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.execution-card {
+  display: grid;
+  gap: 10px;
+  min-height: 180px;
+}
+.execution-card .value {
+  font-size: 28px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.execution-card .value.risk { color: var(--risk); }
+.focus-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.focus-list li {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.focus-list .line-1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.focus-list .line-2 {
+  color: var(--muted);
+  font-size: 12px;
+}
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 8px;
+  margin-bottom: 12px;
 }
-.metric h3 { margin-bottom: 6px; font-size: 14px; }
-.metric .value { font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: .2px; }
+.metric {
+  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(243,247,245,0.95));
+}
+.metric h3 { margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.metric .value { font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: -.03em; }
 .metric .split { font-size: 12px; color: var(--muted); line-height: 1.45; }
-.metric .value.small { font-size: 21px; }
-.metric .value.risk { color: var(--risk); }
-.panel-grid {
+.main-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.9fr);
+  gap: 12px;
+  align-items: start;
 }
-.panel-grid.two-col {
-  grid-template-columns: minmax(430px, 1.6fr) minmax(300px, 1fr);
+.primary-stack, .secondary-stack {
+  display: grid;
+  gap: 12px;
 }
 .triage-head {
   display: flex;
@@ -1125,21 +1198,17 @@ th {
   color: var(--muted);
   position: sticky;
   top: 0;
-  background: rgba(255,252,247,0.95);
-  backdrop-filter: blur(5px);
+  background: rgba(249, 252, 251, 0.98);
 }
 .queue-wrap {
-  max-height: 320px;
+  max-height: 360px;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
+  background: #fff;
 }
-.queue-wrap tr[data-target-row] {
-  cursor: pointer;
-}
-.queue-wrap tr[data-target-row]:hover {
-  background: rgba(15, 107, 93, 0.08);
-}
+.queue-wrap tr[data-target-row] { cursor: pointer; }
+.queue-wrap tr[data-target-row]:hover { background: rgba(10, 106, 99, 0.08); }
 .flag-risk {
   display: inline-block;
   padding: 2px 8px;
@@ -1153,11 +1222,8 @@ th {
   display: flex;
   gap: 8px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   margin-bottom: 8px;
-}
-[data-ws-card] {
-  margin-bottom: 10px;
 }
 .ws-head {
   display: flex;
@@ -1173,24 +1239,21 @@ th {
 }
 .ws-body {
   margin-top: 10px;
-  max-height: 360px;
+  max-height: 420px;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
+  background: #fff;
 }
 .ws-toggle { font-weight: 600; }
 .ws-summary {
   font-size: 12px;
   color: var(--muted);
 }
-tr.is-risk td:first-child {
-  border-left: 3px solid rgba(165, 55, 47, 0.55);
-}
-tr.row-focus {
-  animation: rowFocusFlash 1.6s ease-out;
-}
+tr.is-risk td:first-child { border-left: 3px solid rgba(165, 55, 47, 0.55); }
+tr.row-focus { animation: rowFocusFlash 1.6s ease-out; }
 @keyframes rowFocusFlash {
-  0% { background: rgba(15, 107, 93, 0.2); }
+  0% { background: rgba(10, 106, 99, 0.2); }
   100% { background: transparent; }
 }
 .ws-flag {
@@ -1218,7 +1281,7 @@ tr.row-focus {
   gap: 8px;
 }
 .event-list-wrap {
-  max-height: 240px;
+  max-height: 260px;
   overflow: auto;
   overscroll-behavior: contain;
   padding-right: 4px;
@@ -1226,7 +1289,7 @@ tr.row-focus {
 [data-event-row] {
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(255, 251, 244, 0.85);
+  background: var(--surface);
   padding: 8px 10px;
 }
 [data-event-summary] {
@@ -1260,9 +1323,7 @@ tr.row-focus {
   background: rgba(165, 55, 47, 0.14);
   border: 1px solid rgba(165, 55, 47, 0.3);
 }
-[data-event-details] {
-  margin-top: 6px;
-}
+[data-event-details] { margin-top: 6px; }
 [data-event-details] summary {
   cursor: pointer;
   color: var(--muted);
@@ -1274,64 +1335,46 @@ tr.row-focus {
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f8f3ea;
+  background: #f7faf9;
   padding: 8px;
   font-size: 11px;
 }
 .live-strip {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  height: 44px;
-  border-top: 1px solid var(--line-strong);
-  background: rgba(255, 251, 245, 0.92);
-  backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
-  overflow: hidden;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 .live-label {
-  flex: 0 0 auto;
-  height: 100%;
   display: inline-flex;
   align-items: center;
-  padding: 0 12px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
-  color: #16453c;
-  border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(15,107,93,0.16), rgba(15,107,93,0.08));
+  color: var(--muted);
 }
 .live-scroll {
-  overflow: hidden;
+  overflow: auto;
   width: 100%;
-  height: 100%;
 }
 .live-track {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
+  display: flex;
+  gap: 8px;
   min-width: 100%;
   width: max-content;
-  animation: tickerMove var(--ticker-duration, 42s) linear infinite;
-  height: 100%;
-  will-change: transform;
+  flex-wrap: wrap;
 }
-.live-track.is-static { animation: none; }
-.live-track:hover { animation-play-state: paused; }
 .live-item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
-  height: 100%;
-  border-right: 1px solid rgba(199, 189, 173, 0.7);
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
   font-size: 12px;
-  white-space: nowrap;
+  white-space: normal;
 }
 .live-item .src {
   font-size: 10px;
@@ -1340,9 +1383,21 @@ tr.row-focus {
   text-transform: uppercase;
   color: #31506c;
 }
-@keyframes tickerMove {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+.diagnostic-list {
+  display: grid;
+  gap: 8px;
+}
+.diagnostic-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.diagnostic-row:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 .kbd {
   font-size: 10px;
@@ -1353,21 +1408,18 @@ tr.row-focus {
   background: #fff;
 }
 @media (max-width: 1120px) {
-  .command-grid {
+  .hero, .main-grid, .execution-band, .command-grid {
     grid-template-columns: 1fr;
   }
   .metrics-grid {
-    grid-template-columns: repeat(3, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
   .monitor {
     position: static;
   }
 }
 @media (max-width: 760px) {
-  .metrics-grid {
-    grid-template-columns: repeat(2, minmax(140px, 1fr));
-  }
-  .panel-grid.two-col {
+  .metrics-grid, .summary-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1914,17 +1966,30 @@ def _render_dashboard_layout(content: dict[str, str]) -> str:
 
   <section class="hero">
     <div>
-      <h1>TheWorkshop Dashboard</h1>
+      <div class="hero-title-row">
+        <h1>TheWorkshop Dashboard</h1>
+        <span class="pill {content["project_status_class"]}">{content["project_status"]}</span>
+      </div>
       <div class="project-line muted">
         <b>{content["project_id"]}</b>
         <span>{content["project_title"]}</span>
-        <span class="pill {content["project_status_class"]}">{content["project_status"]}</span>
         <span>generated {content["generated_at"]}</span>
       </div>
+      <p class="hero-copy">{content["project_health_line"]}</p>
     </div>
-    <div class="muted">
-      <div>Agreement: <b>{content["agreement_status"]}</b></div>
-      <div>Elapsed: <b>{content["project_elapsed"]}</b></div>
+    <div class="hero-meta">
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-kicker">Agreement</div>
+          <div class="summary-stat"><b>{content["agreement_status"]}</b></div>
+          <div class="summary-detail">project elapsed {content["project_elapsed"]}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-kicker">Runtime</div>
+          <div class="summary-stat"><b>{content["monitor_status"]}</b></div>
+          <div class="summary-detail">{content["runtime_summary_line"]}</div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1959,115 +2024,147 @@ def _render_dashboard_layout(content: dict[str, str]) -> str:
     </div>
   </section>
 
+  <section class="execution-band">
+    <section class="card execution-card" data-primary-panel="now">
+      <div>
+        <h3>Now Working</h3>
+        <p class="muted">Active jobs and current execution pressure.</p>
+      </div>
+      <div class="value">{content["jobs_in_progress"]}</div>
+      <div class="muted">loop jobs active {content["loops_active"]} · watcher {content["monitor_watch_state"]}</div>
+      {content["active_jobs_html"]}
+    </section>
+    <section class="card execution-card" data-primary-panel="risk">
+      <div>
+        <h3>Needs Attention</h3>
+        <p class="muted">Top risk item by blocked/truth/reward heuristics.</p>
+      </div>
+      <div class="value risk">{content["jobs_at_risk"]}</div>
+      <div class="muted">{content["attention_summary"]}</div>
+      {content["attention_jobs_html"]}
+    </section>
+    <section class="card execution-card" data-primary-panel="next">
+      <div>
+        <h3>Next Action</h3>
+        <p class="muted">The clearest next move available from current reward and truth state.</p>
+      </div>
+      <div class="value">{content["next_action_title"]}</div>
+      <div class="muted">{content["next_action_summary"]}</div>
+      {content["next_action_html"]}
+    </section>
+  </section>
+
   <section class="metrics-grid">
-    <section class="card metric"><h3>Workstreams</h3><div class="value">{content["workstreams_total"]}</div><div class="split">Waves: {content["waves_count"]}</div></section>
+    <section class="card metric"><h3>Workstreams</h3><div class="value">{content["workstreams_total"]}</div><div class="split">waves {content["waves_count"]}</div></section>
     <section class="card metric"><h3>Jobs</h3><div class="value">{content["jobs_total"]}</div><div class="split">done {content["jobs_done"]} · cancelled {content["jobs_cancelled"]}</div></section>
-    <section class="card metric"><h3>In Progress</h3><div class="value">{content["jobs_in_progress"]}</div><div class="split">blocked {content["jobs_blocked"]} · planned {content["jobs_planned"]}</div></section>
-    <section class="card metric"><h3>Truth Status</h3><div class="value small">pass {content["truth_pass"]} / fail {content["truth_fail"]}</div><div class="split">unknown {content["truth_unknown"]}</div></section>
-    <section class="card metric"><h3>Stale Dependencies</h3><div class="value risk">{content["stale_dependencies"]}</div><div class="split">from orchestration/invalidation</div></section>
-    <section class="card metric"><h3>Commands / Failures</h3><div class="value small">{content["commands"]} / {content["failures"]}</div><div class="split">avg duration {content["avg_duration_sec"]}s</div></section>
-    <section class="card metric"><h3>Sub-Agents</h3><div class="value small">{content["subagents_line"]}</div><div class="split">Dispatch: {content["dispatch_line"]}</div></section>
-    <section class="card metric"><h3>Loop Jobs</h3><div class="value small">enabled {content["loops_enabled"]}</div><div class="split">active {content["loops_active"]} · blocked {content["loops_blocked"]} · completed {content["loops_completed"]}</div></section>
-    <section class="card metric"><h3>Estimated Tokens</h3><div class="value small">{content["estimated_tokens"]}</div><div class="split">{content["estimated_chars"]} chars proxy</div></section>
-    <section class="card metric"><h3>Token Source</h3><div class="value small">{content["token_source_label"]}</div><div class="split">session {content["session_tokens"]} · last turn {content["last_turn_tokens"]}</div></section>
-    <section class="card metric"><h3>Session Cost</h3><div class="value small">{content["billed_session_cost_label"]} billed</div><div class="split">API-equivalent: {content["api_equivalent_session_cost_label"]}<br>plan: {content["billing_plan_label"]}</div></section>
-    <section class="card metric"><h3>Project Cost (Delta)</h3><div class="value small">{content["billed_project_cost_label"]} billed delta</div><div class="split">API-equivalent delta: {content["api_equivalent_project_cost_label"]}<br>baseline {content["baseline_tokens"]} · delta {content["delta_tokens"]}</div></section>
+    <section class="card metric"><h3>Truth</h3><div class="value">{content["truth_fail"]}</div><div class="split">fail · pass {content["truth_pass"]} · unknown {content["truth_unknown"]}</div></section>
+    <section class="card metric"><h3>Execution</h3><div class="value">{content["commands"]}</div><div class="split">failures {content["failures"]} · avg {content["avg_duration_sec"]}s</div></section>
   </section>
 
-  {content["waves_block"]}
-
-  <section class="panel-grid two-col">
-    <section class="card">
-      <div class="triage-head">
-        <div>
-          <h3>Triage Queue</h3>
-          <p class="legend">Sorted by deterministic risk: blocked +100, truth fail +80, in_progress +40, reward gap +gap</p>
+  <div class="main-grid">
+    <div class="primary-stack">
+      <section class="card">
+        <div class="triage-head">
+          <div>
+            <h3>Triage Queue</h3>
+            <p class="legend">Sorted by deterministic risk: blocked +100, truth fail +80, in_progress +40, reward gap +gap</p>
+          </div>
         </div>
-      </div>
-      <div class="queue-wrap">
-        <table id="twQueueTable">
-          <thead><tr><th>Work Item</th><th>Status</th><th>Truth</th><th>Reward Gap</th><th>Next Action</th><th>Workstream / Risk</th></tr></thead>
-          <tbody id="twQueueBody"><tr><td colspan="6" class="muted">(initializing)</td></tr></tbody>
+        <div class="queue-wrap">
+          <table id="twQueueTable">
+            <thead><tr><th>Work Item</th><th>Status</th><th>Truth</th><th>Reward Gap</th><th>Next Action</th><th>Workstream / Risk</th></tr></thead>
+            <tbody id="twQueueBody"><tr><td colspan="6" class="muted">(initializing)</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      {content["waves_block"]}
+
+      <section class="card" data-primary-panel="workstreams">
+        <div class="ws-controls">
+          <h3>Workstream Explorer</h3>
+          <div>
+            <button id="twCollapseAll" type="button">Collapse all</button>
+            <button id="twExpandAll" type="button">Expand all</button>
+          </div>
+        </div>
+        {content["ws_cards_html"]}
+      </section>
+    </div>
+
+    <div class="secondary-stack">
+      <section class="card" data-secondary-panel="runtime">
+        <h3>Runtime & Health</h3>
+        <div class="diagnostic-list">
+          <div class="diagnostic-row"><span>Monitor</span><b>{content["monitor_status"]}</b></div>
+          <div class="diagnostic-row"><span>Policy</span><b>{content["monitor_policy"]}</b></div>
+          <div class="diagnostic-row"><span>Watcher</span><b>{content["monitor_watch_state"]} · pid {content["monitor_watch_pid"]}</b></div>
+          <div class="diagnostic-row"><span>Server</span><b>{content["monitor_server_state"]} · pid {content["monitor_server_pid"]}</b></div>
+          <div class="diagnostic-row"><span>Cleanup</span><b>{content["monitor_cleanup_status"]}</b></div>
+          <div class="diagnostic-row"><span>Projection seq</span><b>{content["projection_seq"]}</b></div>
+        </div>
+        <p class="muted">{content["monitor_server_url"]}</p>
+        <p class="muted">warnings: {content["projection_warning_count"]}</p>
+        <ul class="monitor-list">{content["monitor_warning_lines"]}</ul>
+      </section>
+
+      <section class="card" data-secondary-panel="activity">
+        <div id="twLiveStrip" class="live-strip">
+          <span class="live-label">Recent Activity</span>
+          <div class="live-scroll">
+            <div class="live-track{content["ticker_track_class"]}" style="--ticker-duration:{content["ticker_duration"]}s;">{content["ticker_items_html"]}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" data-secondary-panel="orchestration">
+        <h3>Orchestration</h3>
+        <p class="muted">source: {content["orchestration_path"]}</p>
+        <p><b>Parallel Groups</b></p>
+        {content["groups_block"]}
+        <p><b>Critical Path</b></p>
+        {content["critical_path_block"]}
+      </section>
+
+      <section class="card" data-secondary-panel="subagents">
+        <h3>Sub-Agents</h3>
+        <p>{content["subagents_line"]}</p>
+        <p class="muted">source: {content["subagents_path"]}</p>
+        <p class="muted">{content["subagents_note"]}</p>
+        <div class="event-list-wrap">
+          {content["recent_events_block"]}
+        </div>
+      </section>
+
+      <section class="card" data-secondary-panel="dispatch">
+        <h3>Dispatch Engine</h3>
+        <p>{content["dispatch_line"]}</p>
+        <p class="muted">{content["dispatch_note"]}</p>
+        <p class="muted">source: {content["dispatch_path"]}</p>
+        <p class="muted">execution: {content["dispatch_execution_path"]}</p>
+        {content["dispatch_summary_block"]}
+      </section>
+
+      <section class="card" data-secondary-panel="spend">
+        <h3>{content["spend_table_title"]}</h3>
+        <p class="muted">{content["rate_resolution"]}</p>
+        <p class="muted">{content["billing_reason"]}</p>
+        <table>
+          <thead><tr><th>Task</th><th>Estimated Cost</th><th>Weight</th><th>Tokens Allocated</th></tr></thead>
+          <tbody>{content["wi_spend_rows_html"]}</tbody>
         </table>
-      </div>
-    </section>
-    <section class="card">
-      <h3>Monitor Health</h3>
-      <p>projection seq: <b>{content["projection_seq"]}</b></p>
-      <p class="muted">warnings: {content["projection_warning_count"]}</p>
-      <ul class="monitor-list">{content["monitor_warning_lines"]}</ul>
-      <p>monitor status: <b>{content["monitor_status"]}</b></p>
-      <p class="muted">policy: {content["monitor_policy"]} · watch pid: {content["monitor_watch_pid"]} ({content["monitor_watch_state"]})</p>
-      <p class="muted">cost source: {content["cost_source_label"]} ({content["cost_confidence"]}) · billing confidence: {content["billing_confidence"]}</p>
-      <p class="muted">model: {content["rate_model_key"]} · {content["rate_resolution"]}</p>
-      <p class="muted">{content["billing_reason"]}</p>
-      <p>GitHub Sync: <b>{content["github_sync_state"]}</b></p>
-      <p class="muted">{content["github_repo"]}</p>
-    </section>
-  </section>
+      </section>
 
-  <section class="panel-grid">
-    <section class="card">
-      <h3>Orchestration</h3>
-      <p class="muted">source: {content["orchestration_path"]}</p>
-      <p><b>Parallel Groups</b></p>
-      {content["groups_block"]}
-      <p><b>Critical Path</b></p>
-      {content["critical_path_block"]}
-    </section>
-    <section class="card">
-      <h3>Sub-Agents</h3>
-      <p>{content["subagents_line"]}</p>
-      <p class="muted">source: {content["subagents_path"]}</p>
-      <p class="muted">{content["subagents_note"]}</p>
-      <p><b>Recent Events</b></p>
-      <div class="event-list-wrap">
-        {content["recent_events_block"]}
-      </div>
-    </section>
-    <section class="card">
-      <h3>Dispatch Engine</h3>
-      <p>{content["dispatch_line"]}</p>
-      <p class="muted">{content["dispatch_note"]}</p>
-      <p class="muted">source: {content["dispatch_path"]}</p>
-      <p class="muted">execution: {content["dispatch_execution_path"]}</p>
-      {content["dispatch_summary_block"]}
-    </section>
-  </section>
-
-  <section class="panel-grid">
-    <section class="card">
-      <h3>{content["spend_table_title"]}</h3>
-      <p class="muted">{content["rate_resolution"]}</p>
-      <p class="muted">{content["billing_reason"]}</p>
-      <table>
-        <thead><tr><th>Task</th><th>Estimated Cost</th><th>Weight</th><th>Tokens Allocated</th></tr></thead>
-        <tbody>{content["wi_spend_rows_html"]}</tbody>
-      </table>
-    </section>
-  </section>
-
-  <h2>Workstream Explorer</h2>
-  <div class="ws-controls">
-    <button id="twCollapseAll" type="button">Collapse all</button>
-    <button id="twExpandAll" type="button">Expand all</button>
-  </div>
-  {content["ws_cards_html"]}
-
-  <section class="card">
-    <h3>Paths</h3>
-    <ul>
-      <li><code>outputs/dashboard.json</code></li>
-      <li><code>outputs/dashboard.md</code></li>
-      <li><code>outputs/dashboard.html</code></li>
-    </ul>
-  </section>
-</div>
-
-<div id="twLiveStrip" class="live-strip">
-  <span class="live-label">Live Activity</span>
-  <div class="live-scroll">
-    <div class="live-track{content["ticker_track_class"]}" style="--ticker-duration:{content["ticker_duration"]}s;">{content["ticker_items_html"]}</div>
+      <section class="card" data-secondary-panel="paths">
+        <h3>Paths</h3>
+        <ul>
+          <li><code>outputs/dashboard.json</code></li>
+          <li><code>outputs/dashboard.md</code></li>
+          <li><code>outputs/dashboard.html</code></li>
+        </ul>
+        <p class="muted">token source {content["token_source_label"]} · billed session {content["billed_session_cost_label"]}</p>
+      </section>
+    </div>
   </div>
 </div>
 """
@@ -2091,6 +2188,10 @@ def render_html(payload: dict) -> str:
     monitor_policy = str(monitor_state.get("policy") or "always")
     monitor_watch_alive = bool(monitor_state.get("watch_alive"))
     monitor_watch_pid = int(monitor_state.get("watch_pid") or 0)
+    monitor_server_alive = bool(monitor_state.get("server_alive"))
+    monitor_server_pid = int(monitor_state.get("server_pid") or 0)
+    monitor_server_url = str(monitor_state.get("server_url") or "")
+    monitor_cleanup_status = str(monitor_state.get("cleanup_status") or "none")
     sub_counts = (subagents.get("counts") or {}) if isinstance(subagents, dict) else {}
     dispatch_counts = (dispatch.get("counts") or {}) if isinstance(dispatch, dict) else {}
 
@@ -2179,6 +2280,7 @@ def render_html(payload: dict) -> str:
     )
 
     ws_cards: list[str] = []
+    job_records: list[dict[str, Any]] = []
     for w in ws:
         ws_id = str(w.get("id") or "")
         ws_title = str(w.get("title") or "")
@@ -2203,10 +2305,33 @@ def render_html(payload: dict) -> str:
             reward_target = int(j.get("reward_target") or 0)
             reward_gap = max(0, reward_target - reward_score)
             reward_next_action = str(j.get("reward_next_action") or "")
+            risk_score = 0
+            if status == "blocked":
+                risk_score += 100
+            if truth_status == "fail":
+                risk_score += 80
+            if status == "in_progress":
+                risk_score += 40
+            risk_score += reward_gap
             row_anchor = "twRow-" + re.sub(r"[^A-Za-z0-9_-]", "-", wi_id)
             truth_text = f"<span class='truth-pill {truth_class(truth_status)}'>{html_escape(truth_status)}</span>"
             if truth_snippet:
                 truth_text += f"<div class='muted'>{html_escape(truth_snippet)}</div>"
+
+            job_records.append(
+                {
+                    "wi_id": wi_id,
+                    "title": wi_title,
+                    "status": status,
+                    "truth_status": truth_status,
+                    "truth_snippet": truth_snippet,
+                    "ws_id": ws_id,
+                    "ws_title": ws_title,
+                    "reward_gap": reward_gap,
+                    "next_action": reward_next_action,
+                    "risk_score": risk_score,
+                }
+            )
 
             flags: list[str] = []
             if status == "blocked":
@@ -2297,6 +2422,53 @@ def render_html(payload: dict) -> str:
                 job_count=len(rows),
                 rows_html=rows_html,
             )
+        )
+
+    risk_records = sorted(job_records, key=lambda item: (-int(item["risk_score"]), str(item["wi_id"])))
+    active_records = [item for item in job_records if str(item.get("status") or "") == "in_progress"]
+    attention_records = [item for item in risk_records if int(item.get("risk_score") or 0) > 0]
+    next_action_record = next((item for item in risk_records if str(item.get("next_action") or "").strip()), None)
+
+    def render_focus_list(items: list[dict[str, Any]], *, empty_text: str, limit: int = 3) -> str:
+        picked = items[:limit]
+        if not picked:
+            return f"<p class='muted'>{html_escape(empty_text)}</p>"
+        rows: list[str] = []
+        for item in picked:
+            next_action = str(item.get("next_action") or "").strip()
+            detail = f"{item['ws_id']} · {item['status']} · truth {item['truth_status']}"
+            if next_action:
+                detail += f" · next {next_action}"
+            rows.append(
+                "<li>"
+                "<div class='line-1'>"
+                f"<code>{html_escape(str(item['wi_id']))}</code>"
+                f"<span>{html_escape(str(item['title']))}</span>"
+                f"<span class='pill {status_class(str(item['status']))}'>{html_escape(str(item['status']))}</span>"
+                "</div>"
+                f"<div class='line-2'>{html_escape(detail)}</div>"
+                "</li>"
+            )
+        return "<ul class='focus-list'>" + "".join(rows) + "</ul>"
+
+    attention_summary = (
+        f"Top risk {attention_records[0]['wi_id']} in {attention_records[0]['ws_id']} "
+        f"(risk {int(attention_records[0]['risk_score'])})"
+        if attention_records
+        else "No blocked, truth-fail, or reward-gap items right now."
+    )
+    next_action_title = "Ready"
+    next_action_summary = "No reward follow-up action is currently queued."
+    next_action_html = "<p class='muted'>Reward and truth gates are clear enough that there is no single forced next action.</p>"
+    if next_action_record:
+        next_action_title = str(next_action_record["wi_id"])
+        next_action_summary = f"{next_action_record['ws_id']} · {next_action_record['title']}"
+        next_action_html = (
+            "<ul class='focus-list'><li>"
+            f"<div class='line-1'><code>{html_escape(str(next_action_record['wi_id']))}</code>"
+            f"<span>{html_escape(str(next_action_record['title']))}</span></div>"
+            f"<div class='line-2'>{html_escape(str(next_action_record['next_action']))}</div>"
+            "</li></ul>"
         )
 
     waves_block = ""
@@ -2453,13 +2625,22 @@ def render_html(payload: dict) -> str:
             "<tr><td colspan='4' class='muted'>(no attributable execution logs yet)</td></tr>"
         ]
 
-    jobs_at_risk = int(stats["jobs_status"].get("blocked") or 0) + truth_fail
+    jobs_at_risk = len(attention_records)
     billing_plan_label = (
         "Codex auth/subscription"
         if billing_mode == "subscription_auth"
         else "metered API"
         if billing_mode == "metered_api"
         else "unknown"
+    )
+    project_health_line = (
+        f"{len(active_records)} active · {jobs_at_risk} at risk · "
+        f"{int(stats['jobs_status'].get('done') or 0)} complete · "
+        f"dispatch {dispatch_line.lower()}"
+    )
+    runtime_summary_line = (
+        f"watcher {('alive' if monitor_watch_alive else 'stopped')} · "
+        f"server {('alive' if monitor_server_alive else 'stopped')} · cleanup {monitor_cleanup_status}"
     )
 
     content: dict[str, str] = {
@@ -2470,6 +2651,8 @@ def render_html(payload: dict) -> str:
         "project_status_class": status_class(str(proj.get("status") or "")),
         "agreement_status": html_escape(str(proj.get("agreement_status") or "")),
         "project_elapsed": html_escape(str(proj.get("elapsed") or "n/a")),
+        "project_health_line": html_escape(project_health_line),
+        "runtime_summary_line": html_escape(runtime_summary_line),
         "status_filters_html": status_filters_html,
         "truth_filters_html": truth_filters_html,
         "workstreams_total": str(stats["workstreams_total"]),
@@ -2511,6 +2694,10 @@ def render_html(payload: dict) -> str:
         "monitor_policy": html_escape(monitor_policy),
         "monitor_watch_pid": str(monitor_watch_pid),
         "monitor_watch_state": "alive" if monitor_watch_alive else "stopped",
+        "monitor_server_pid": str(monitor_server_pid),
+        "monitor_server_state": "alive" if monitor_server_alive else "stopped",
+        "monitor_server_url": html_escape(monitor_server_url or "(no live server URL)"),
+        "monitor_cleanup_status": html_escape(monitor_cleanup_status),
         "cost_source_label": html_escape(cost_source_label),
         "cost_confidence": html_escape(cost_confidence),
         "billing_confidence": billing_confidence,
@@ -2538,6 +2725,15 @@ def render_html(payload: dict) -> str:
         "ticker_duration": ticker_duration,
         "jobs_at_risk": str(jobs_at_risk),
         "billing_plan_label": html_escape(billing_plan_label),
+        "active_jobs_html": render_focus_list(active_records, empty_text="No jobs are currently in progress."),
+        "attention_jobs_html": render_focus_list(
+            attention_records,
+            empty_text="Nothing is currently blocked or failing truth/reward gates.",
+        ),
+        "attention_summary": html_escape(attention_summary),
+        "next_action_title": html_escape(next_action_title),
+        "next_action_summary": html_escape(next_action_summary),
+        "next_action_html": next_action_html,
     }
 
     return (

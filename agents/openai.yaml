@@ -1,0 +1,7 @@
+interface:
+  display_name: "TheWorkshop"
+  short_description: "Run mixed-work projects with auditable plans and local orchestration."
+  default_prompt: "Use $theworkshop to turn this request into a Project -> Workstreams -> Jobs plan and execute it with TheWorkshop gates."
+
+policy:
+  allow_implicit_invocation: true

@@ -67,11 +67,11 @@ def main() -> None:
         base_dir = Path(td).resolve()
 
         project1, wi1 = make_ready_project(base_dir, name="No Open Is Ephemeral")
-        if read_policy(project1) != "always":
-            raise RuntimeError("Expected new project monitor_open_policy=always")
+        if read_policy(project1) != "once":
+            raise RuntimeError("Expected new project monitor_open_policy=once")
         run(py("job_start.py") + ["--project", str(project1), "--work-item-id", wi1, "--no-open"])
-        if read_policy(project1) != "always":
-            raise RuntimeError("Expected --no-open to keep monitor_open_policy=always")
+        if read_policy(project1) != "once":
+            raise RuntimeError("Expected --no-open to keep monitor_open_policy=once")
 
         project2, wi2 = make_ready_project(base_dir, name="Manual Policy Override")
         run(

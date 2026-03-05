@@ -47,6 +47,9 @@ def main() -> None:
         disabled_payload = json.loads(disabled.stdout)
         if str(disabled_payload.get("status") or "") != "disabled":
             raise RuntimeError(f"Expected status=disabled, got: {disabled_payload}")
+        for key in ("server_pid", "server_alive", "watch_pid", "watch_alive", "cleanup_status"):
+            if key not in disabled_payload:
+                raise RuntimeError(f"Expected runtime payload to include {key!r}: {disabled_payload}")
 
         idle = run(
             py("monitor_runtime.py") + ["start", "--project", str(project_root), "--no-open", "--no-watch"],
@@ -57,6 +60,8 @@ def main() -> None:
             raise RuntimeError(f"Expected status=idle, got: {idle_payload}")
         if bool(idle_payload.get("watch_alive")):
             raise RuntimeError(f"Expected watch_alive=false for idle status, got: {idle_payload}")
+        if bool(idle_payload.get("server_alive")):
+            raise RuntimeError(f"Expected server_alive=false for idle status, got: {idle_payload}")
 
         print("MONITOR RUNTIME STATUS TEST PASSED")
         print(str(project_root))
@@ -64,4 +69,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

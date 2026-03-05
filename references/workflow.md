@@ -7,6 +7,39 @@ TheWorkshop runs in two stages:
 1. **Plan (agree first)**: intake -> decomposition -> optimization -> success hooks -> explicit agreement.
 2. **Execute (loopable)**: run jobs sequentially (or in safe parallel) with reward gating and continuous plan updates.
 
+## Repo-owned `WORKFLOW.md` contract
+
+Each TheWorkshop project root now includes a `WORKFLOW.md` file. It is the local execution contract
+for unattended runs and plays the same role that repo-owned workflow files play in service-style
+orchestrators:
+
+- frontmatter defines runtime defaults:
+  - `work_source.kind` (currently `local_project`)
+  - `polling.interval_sec`
+  - `orchestration.auto_refresh`
+  - `validation.require_agreement`
+  - `validation.run_plan_check`
+  - `dispatch.runner`, `dispatch.max_parallel`, `dispatch.timeout_sec`
+  - `dispatch.continue_on_error`, `dispatch.no_complete`, `dispatch.no_monitor`
+  - `dispatch.open_policy`, `dispatch.codex_args`
+  - `hooks.before_cycle`, `hooks.after_cycle`, `hooks.timeout_sec`
+- markdown body is a shared execution-policy prompt prepended to delegated work-item prompts
+
+Operational commands:
+
+- `theworkshop workflow-check --project <path>` validates and prints the effective contract
+- `theworkshop serve --project <path> --once` runs one unattended cycle
+- `theworkshop serve --project <path> --detach` runs a background service loop
+
+Runner behavior:
+
+- reloads `WORKFLOW.md` at the start of each cycle
+- respects project agreement gating before dispatch
+- optionally refreshes orchestration artifacts before dispatch
+- dispatches runnable jobs from the on-disk project graph
+- emits runner telemetry to `logs/workflow-runner.jsonl`
+- writes live state to `tmp/workflow-runner.json`
+
 ## Stage 1: Plan (Agree First)
 
 ### Step 1: Intake
@@ -226,7 +259,7 @@ Triggers:
 - after each reward eval
 - at closeout
 
-At execution start (and after completion as needed), TheWorkshop must also **auto-open** the dashboard in a new browser window (best-effort, open-once per session) so the user can follow progress.
+At execution start, TheWorkshop must also **auto-open** the dashboard in a new browser window (best-effort, open-once per session) so the user can follow progress without repeated browser churn.
 - The HTML auto-refreshes every ~5s by default and can be paused in-page.
 - Optional live mode: run `dashboard_server.py` and open the served URL. The page upgrades to SSE (`/events`) when served over HTTP, with file polling fallback preserved.
 - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
@@ -234,6 +267,9 @@ At execution start (and after completion as needed), TheWorkshop must also **aut
 - Persist monitor policy intentionally with `job_start.py --monitor-policy always|once|manual` (or `monitor_runtime.py start --policy ...`).
 - TheWorkshop also starts a best-effort background watcher (`dashboard_watch.py`) so the dashboard artifacts keep updating even when no explicit dashboard rebuild trigger fires (opt-out: `THEWORKSHOP_NO_MONITOR=1`).
 - Monitor runtime policy is project-scoped (`monitor_open_policy: always|once|manual`) and managed via `monitor_runtime.py start|stop|status`.
+- `monitor_runtime.py` is the lifecycle authority for dashboard open/watch/serve/cleanup; compatibility wrappers such as `dashboard_open.py` route through it.
+- Live dashboard reuse is intentional: if a healthy local server already exists, runtime state reuses that URL instead of creating a fresh browser target.
+- Project terminal closeout stops background dashboard/server runtime and prunes transient runtime artifacts while preserving canonical plans, logs, and dashboard outputs.
 
 ### Usage + spend telemetry (required)
 

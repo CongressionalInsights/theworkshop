@@ -12,6 +12,7 @@ from typing import Any
 
 from tw_tools import run_script
 from twlib import now_iso, normalize_str_list, read_md, resolve_project_root
+from workflow_contract import compose_execution_prompt, load_workflow_contract
 
 
 RUNNABLE_STATUSES = {"planned", "blocked", "in_progress"}
@@ -152,6 +153,16 @@ def _record_execution(project_root: Path, wi: str, label: str, command: str, sta
     _append_jsonl(project_root / "logs" / "execution.jsonl", row)
 
 
+def _workflow_policy_prompt(project_root: Path) -> str:
+    try:
+        contract = load_workflow_contract(project_root, missing_ok=True)
+    except SystemExit:
+        return ""
+    if contract is None:
+        return ""
+    return str(contract.prompt_template or "").strip()
+
+
 def _run_job(
     project_root: Path,
     wi: str,
@@ -276,6 +287,27 @@ def _run_job(
         )
         return result
 
+    prompt_path = plan_path.parent / "prompt.md"
+    if prompt_path.exists():
+        prompt_text = prompt_path.read_text(encoding="utf-8", errors="ignore")
+    else:
+        plan_doc = read_md(plan_path)
+        prompt_text = (
+            f"Work item: {wi}\n"
+            f"Title: {plan_doc.frontmatter.get('title') or ''}\n"
+            "Execute this job and produce declared outputs/evidence.\n"
+            "Follow the job plan and then stop.\n"
+        )
+    prompt_text = compose_execution_prompt(_workflow_policy_prompt(project_root), prompt_text)
+
+    job_logs = plan_path.parent / "logs"
+    job_logs.mkdir(parents=True, exist_ok=True)
+    prompt_dump_path = job_logs / "dispatch.prompt.txt"
+    stdout_path = job_logs / "dispatch.stdout.txt"
+    stderr_path = job_logs / "dispatch.stderr.txt"
+    last_msg_path = job_logs / "dispatch.last-message.txt"
+    prompt_dump_path.write_text(prompt_text, encoding="utf-8", errors="ignore")
+
     if args.dry_run or args.runner == "none":
         result["status"] = "simulated"
         result["completed_at"] = now_iso()
@@ -296,24 +328,6 @@ def _run_job(
             dispatch_run_id=dispatch_run_id,
         )
         return result
-
-    prompt_path = plan_path.parent / "prompt.md"
-    if prompt_path.exists():
-        prompt_text = prompt_path.read_text(encoding="utf-8", errors="ignore")
-    else:
-        plan_doc = read_md(plan_path)
-        prompt_text = (
-            f"Work item: {wi}\n"
-            f"Title: {plan_doc.frontmatter.get('title') or ''}\n"
-            "Execute this job and produce declared outputs/evidence.\n"
-            "Follow the job plan and then stop.\n"
-        )
-
-    job_logs = plan_path.parent / "logs"
-    job_logs.mkdir(parents=True, exist_ok=True)
-    stdout_path = job_logs / "dispatch.stdout.txt"
-    stderr_path = job_logs / "dispatch.stderr.txt"
-    last_msg_path = job_logs / "dispatch.last-message.txt"
 
     cmd = [
         "codex",
@@ -460,7 +474,7 @@ def main() -> None:
     parser.add_argument(
         "--open-policy",
         choices=["always", "once", "manual"],
-        default="always",
+        default="once",
         help="Dashboard monitoring policy for this dispatch run.",
     )
     parser.add_argument("--no-monitor", action="store_true", help="Do not start monitor runtime at dispatch start")

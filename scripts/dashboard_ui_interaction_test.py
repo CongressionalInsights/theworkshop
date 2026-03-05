@@ -92,9 +92,15 @@ def main() -> None:
             "data-event-summary='1'",
             "data-event-details='1'",
             "data-event-raw='1'",
-            "Session Cost",
-            "Project Cost (Delta)",
-            "Sub-Agents",
+            "data-primary-panel=\"now\"",
+            "data-primary-panel=\"risk\"",
+            "data-primary-panel=\"next\"",
+            "data-secondary-panel=\"runtime\"",
+            "data-secondary-panel=\"activity\"",
+            "data-secondary-panel=\"subagents\"",
+            "Runtime & Health",
+            "Recent Activity",
+            "Workstream Explorer",
         ]
         for marker in required_markers:
             if marker not in html:

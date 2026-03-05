@@ -3,7 +3,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/CongressionalInsights/theworkshop?display_name=tag)](https://github.com/CongressionalInsights/theworkshop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-**TheWorkshop Open Source Edition** is a **skill for Codex and Claude Code** that runs non-coding work in a structured, auditable way.
+**TheWorkshop Open Source Edition** is a **skill for Codex and Claude Code** that runs mixed coding and non-coding work in a structured, auditable way.
 
 It turns ambiguous requests into a living execution workflow:
 
@@ -28,11 +28,12 @@ The diagram below shows TheWorkshop's control plane (planning, gating, orchestra
 ## What It Is
 
 - A **Codex/Claude Code skill**, not a standalone app
-- A structured runtime for non-coding projects
+- A structured runtime for mixed coding and non-coding projects
 - Agreement-gated before execution starts
 - Truth-gated and reward-gated before completion claims
 - Parallel-orchestration aware (sub-agents when independent jobs exist)
 - Dashboard-first monitoring with token/spend telemetry
+- A repo-owned `WORKFLOW.md` contract for unattended local execution
 
 ## What It Is Not
 
@@ -90,6 +91,9 @@ cd "$CODEX_HOME/skills/theworkshop" && git pull origin main
 # create project
 python3 scripts/project_new.py --name "Workshop Demo"
 
+# inspect the generated execution contract
+python3 scripts/workflow_check.py --project /path/to/project
+
 # add workstream + job
 python3 scripts/workstream_add.py --project /path/to/project --title "Research"
 python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Draft options memo"
@@ -104,6 +108,8 @@ python3 scripts/optimize_plan.py --project /path/to/project
 python3 scripts/orchestrate_plan.py --project /path/to/project
 python3 scripts/dispatch_orchestration.py --project /path/to/project --dry-run
 python3 scripts/council_plan.py --project /path/to/project --dry-run
+python3 scripts/workflow_runner.py --project /path/to/project --once
+python3 scripts/workflow_runner.py --project /path/to/project --detach
 
 # execute one job
 python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
@@ -116,6 +122,10 @@ python3 scripts/health.py --project /path/to/project --repair
 python3 scripts/quick.py --project /path/to/project --title "One-off patch" --command "echo done"
 python3 scripts/dashboard_server.py --project /path/to/project --open
 ```
+
+Every project now gets a `WORKFLOW.md` file at the project root. It is the repo-owned execution
+contract for unattended runs: polling cadence, dispatch defaults, pre/post cycle hooks, and the
+shared execution-policy prompt prepended to delegated work-item prompts.
 
 Expected core outputs:
 
@@ -134,11 +144,13 @@ Expected core outputs:
 
 ## Monitoring + Spend Semantics
 
-- Dashboard auto-opens best-effort at execution start (unless disabled)
+- Dashboard auto-opens best-effort once per session at execution start (unless disabled)
 - Auto-refresh supports stale detection and pause/resume
 - Optional local live transport: `python3 scripts/dashboard_server.py --project /path/to/project`
   - serves `dashboard.html` over `http://127.0.0.1:*`
   - publishes `/events` SSE updates so the page can switch from poll mode to live mode
+- `monitor_runtime.py` owns dashboard open/watch/serve/stop/cleanup so repeated lifecycle events reuse the same runtime instead of spawning fresh browser/server state
+- Project terminal closeout prunes transient runtime artifacts while preserving canonical outputs, logs, and dashboard artifacts
 - Cost display is billing-aware:
   - `subscription_auth`: billed cost shown as `$0` marginal, API-equivalent shown secondarily
   - `metered_api`: billed cost from exact telemetry when available

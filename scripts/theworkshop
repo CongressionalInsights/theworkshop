@@ -29,6 +29,7 @@ def main() -> int:
     sub.add_parser("add-workstream", help="Add a workstream to a project")
     sub.add_parser("add-job", help="Add a job to a workstream")
     sub.add_parser("check", help="Validate plans + gates")
+    sub.add_parser("workflow-check", help="Validate WORKFLOW.md and print effective runtime config")
     sub.add_parser("optimize", help="Generate optimization report")
     sub.add_parser("reward-eval", help="Compute rewards + next actions (updates job plans)")
     sub.add_parser("dashboard", help="Build dashboard artifacts")
@@ -107,6 +108,7 @@ def main() -> int:
     sub.add_parser("dashboard-serve", help="Serve dashboard with local SSE updates (optional)")
     sub.add_parser("invalidate-downstream", help="Invalidate stale done downstream jobs")
     sub.add_parser("agent-log", help="Append an event to logs/agents.jsonl")
+    sub.add_parser("serve", help="Run the Symphony-style local project runner")
 
     args, rest = parser.parse_known_args()
     mapping = {
@@ -114,6 +116,7 @@ def main() -> int:
         "add-workstream": "workstream_add.py",
         "add-job": "job_add.py",
         "check": "plan_check.py",
+        "workflow-check": "workflow_check.py",
         "optimize": "optimize_plan.py",
         "reward-eval": "reward_eval.py",
         "dashboard": "dashboard_projector.py",
@@ -150,6 +153,7 @@ def main() -> int:
         "dashboard-serve": "dashboard_server.py",
         "invalidate-downstream": "invalidate_downstream.py",
         "agent-log": "agent_log.py",
+        "serve": "workflow_runner.py",
     }
     script = mapping[args.cmd]
     argv = sys.argv[2:]

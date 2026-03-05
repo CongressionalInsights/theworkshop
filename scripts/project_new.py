@@ -7,6 +7,7 @@ from pathlib import Path
 from twlib import ensure_dir, kebab, next_id, now_iso, today_yyyymmdd
 from twyaml import MarkdownDoc
 from twlib import write_md
+from workflow_contract import default_workflow_text
 
 
 WORKSTREAM_TABLE_START = "<!-- THEWORKSHOP:WORKSTREAM_TABLE_START -->"
@@ -52,7 +53,7 @@ def build_project_plan(project_id: str, title: str) -> MarkdownDoc:
         "github_repo": "",
         "subagent_policy": "auto",
         "max_parallel_agents": 3,
-        "monitor_open_policy": "always",
+        "monitor_open_policy": "once",
         "monitor_session_id": "",
         "last_transition_id": "",
         "waves": [],
@@ -127,6 +128,7 @@ def main() -> None:
 
     # Seed required docs
     write_md(project_dir / "plan.md", build_project_plan(project_id, args.name))
+    (project_dir / "WORKFLOW.md").write_text(default_workflow_text(), encoding="utf-8")
     (project_dir / "workstreams" / "index.md").write_text("# Workstreams\n\n- (none)\n", encoding="utf-8")
     (project_dir / "notes" / "lessons-learned.md").write_text("# Lessons Learned\n\n", encoding="utf-8")
 

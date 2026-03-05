@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,16 +38,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-watch", action="store_true", help="Do not start watcher")
     args = parser.parse_args(argv)
 
-    if str(os.environ.get("THEWORKSHOP_NO_OPEN") or "").strip() == "1":
-        return 0
-    if str(os.environ.get("THEWORKSHOP_NO_MONITOR") or "").strip() == "1":
-        return 0
-
     project_root = resolve_project_root(args.project)
 
     rt_args = ["start", "--project", str(project_root)]
     if args.policy:
         rt_args += ["--policy", args.policy]
+    if args.browser:
+        rt_args += ["--browser", args.browser]
     if args.no_open:
         rt_args += ["--no-open"]
     if args.no_watch:

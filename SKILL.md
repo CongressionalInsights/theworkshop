@@ -1,11 +1,11 @@
 ---
 name: theworkshop
-description: "Codex/Claude Code skill for non-coding work: optimized decomposition into Project->Workstreams->Jobs, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
+description: "Codex/Claude Code skill for mixed coding and non-coding work: optimized decomposition into Project->Workstreams->Jobs, repo-owned WORKFLOW.md execution contracts, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
 ---
 
 # TheWorkshop
 
-Use this skill in **Codex and Claude Code** to run non-coding projects in a structured, auditable, loopable way.
+Use this skill in **Codex and Claude Code** to run mixed coding and non-coding projects in a structured, auditable, loopable way.
 
 TheWorkshop is **operatorless**: the user does not run terminal commands. Codex executes scripts directly and only asks the user for **click-only** permissions when required (auth, keychain, etc.).
 
@@ -23,13 +23,16 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **Terminal closure modes**: projects can close as `done` or `cancelled` (both first-class).
 - **Behavior-driving rewards**: jobs are not allowed to be marked `done` until reward targets are met.
 - **Single-writer dashboard projection**: `dashboard_projector.py` is the control-plane writer for dashboard artifacts.
-- **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it in a new browser window** (best-effort) so the user can follow along. The dashboard auto-refreshes every ~5s (pauseable).
+- **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it once per session by default** (best-effort) so the user can follow along without repeated browser churn. The dashboard auto-refreshes every ~5s (pauseable).
   - Event/task logs are humanized by default for operator readability.
   - Full raw machine event payloads remain accessible from per-event details drawers.
+  - `monitor_runtime.py` is the lifecycle authority for dashboard open/watch/serve/stop/cleanup.
+  - Live dashboard opens reuse the existing local server URL when available instead of creating a new target per event.
   - `job_start.py --no-open` is runtime-only and does not persist `monitor_open_policy`.
   - To persist policy intentionally, pass `job_start.py --monitor-policy always|once|manual`.
   - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`
   - Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`
+  - Project terminal closeout prunes transient runtime artifacts while preserving canonical plans/logs/outputs.
 - **Strict completion defaults for new jobs**: execution evidence and linked lessons are required unless explicit exemption reasons are recorded in job frontmatter.
 - **Spend visibility**: dashboard/usage always include token telemetry and cost source metadata.
   - If CodexBar provides cost, treat as exact (`cost_source=codexbar_exact`, high confidence).
@@ -51,6 +54,9 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - `logs/subagent-dispatch.jsonl` remains compatibility/diagnostic telemetry for dispatch engine traces.
   - If delegation is done outside dispatch (for example direct tool-level subagents), emit lifecycle events with `agent_log.py` (`source=manual|external`) so dashboard subagent/dispatch panels stay truthful.
   - Dispatch summary: `outputs/orchestration-execution.json`
+- **Repo-owned execution contract**: each project root carries a `WORKFLOW.md` file that defines polling cadence, dispatch defaults, cycle hooks, and a shared execution-policy prompt for unattended runs.
+  - `workflow_check.py` validates and prints the effective contract.
+  - `workflow_runner.py` runs a Symphony-style local service loop over the on-disk project graph.
 - **Optional council planning mode**: run multi-planner synthesis before agreement lock.
   - `council_plan.py` uses Gemini CLI planners by default.
   - OpenAI planners are supported through `$apple-keychain` with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
@@ -90,6 +96,9 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 ```bash
 # Create a new project root
 {baseDir}/scripts/project_new.py --name "My Project"
+
+# Validate the generated execution contract
+{baseDir}/scripts/workflow_check.py --project /path/to/project
 
 # Add workstreams and jobs
 {baseDir}/scripts/workstream_add.py --project /path/to/project --title "Research"
@@ -137,7 +146,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/dashboard_monitor.py --project /path/to/project
 
 # Monitor runtime controls
-{baseDir}/scripts/monitor_runtime.py start --project /path/to/project --policy always
+{baseDir}/scripts/monitor_runtime.py start --project /path/to/project --policy once
 {baseDir}/scripts/monitor_runtime.py stop --project /path/to/project
 
 # Canonical transition engine
@@ -150,6 +159,10 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Orchestration dispatch (delegated execution)
 {baseDir}/scripts/dispatch_orchestration.py --project /path/to/project
 {baseDir}/scripts/dispatch_orchestration.py --project /path/to/project --dry-run
+
+# Symphony-style local runner over WORKFLOW.md + project graph
+{baseDir}/scripts/workflow_runner.py --project /path/to/project --once
+{baseDir}/scripts/workflow_runner.py --project /path/to/project --detach
 
 # Optional council planning before agreement lock
 {baseDir}/scripts/council_plan.py --project /path/to/project --dry-run
