@@ -936,6 +936,16 @@ code {
 }
 .badge-on { border-color: rgba(10,106,99,0.35); background: rgba(10,106,99,0.10); }
 .badge-off { border-color: rgba(95,107,117,0.35); background: rgba(95,107,117,0.10); }
+.badge-frozen {
+  border-color: rgba(122, 31, 92, 0.35);
+  background: rgba(122, 31, 92, 0.10);
+  color: var(--cancelled);
+}
+.badge-offline {
+  border-color: rgba(180, 35, 24, 0.35);
+  background: rgba(180, 35, 24, 0.10);
+  color: var(--blocked);
+}
 .badge-stale {
   border-color: rgba(180,35,24,0.35);
   background: rgba(180,35,24,0.10);
@@ -1825,7 +1835,11 @@ def _render_dashboard_js() -> str:
     else if (lower === "d") setFocus("done");
   });
 
-  var enabled = lsGet(LS_REFRESH, "1") !== "0";
+  var root = document.documentElement || null;
+  var rootProjectStatus = String(root && root.getAttribute("data-project-status") || "").toLowerCase();
+  var rootMonitorStatus = String(root && root.getAttribute("data-monitor-status") || "").toLowerCase();
+  var persistedEnabled = lsGet(LS_REFRESH, "1") !== "0";
+  var refreshState = persistedEnabled ? "ON" : "PAUSED";
   var nextAt = Date.now() + REFRESH_MS;
   var genAtStr = document.documentElement.getAttribute("data-generated-at") || "";
   var genAtMs = Date.parse(genAtStr);
@@ -1833,6 +1847,9 @@ def _render_dashboard_js() -> str:
   var sse = null;
   var sseConnected = false;
   var sseEnabled = (window.location.protocol || "").indexOf("http") === 0;
+  var offlineProbeUntil = 0;
+  var nextReconnectAt = 0;
+  var RECONNECT_STEP_MS = 1000;
 
   var elToggle = $("twRefreshToggle");
   var elNow = $("twRefreshNow");
@@ -1841,6 +1858,37 @@ def _render_dashboard_js() -> str:
   var elStale = $("twStaleBadge");
   var elAge = $("twDataAge");
 
+  function isTerminalStatus(status) {
+    return status === "done" || status === "cancelled" || status === "terminal";
+  }
+
+  function disconnectSSE() {
+    if (sse) {
+      try { sse.close(); } catch (e) {}
+    }
+    sse = null;
+    sseConnected = false;
+  }
+
+  function setRefreshState(nextState) {
+    refreshState = String(nextState || "ON");
+    renderRefresh();
+  }
+
+  function freezeTerminal() {
+    offlineProbeUntil = 0;
+    nextReconnectAt = 0;
+    disconnectSSE();
+    setRefreshState("FROZEN");
+  }
+
+  function goOffline() {
+    offlineProbeUntil = 0;
+    nextReconnectAt = 0;
+    disconnectSSE();
+    setRefreshState("OFFLINE");
+  }
+
   function reloadNow() {
     saveScroll();
     var base = window.location.href.split("?")[0];
@@ -1848,33 +1896,59 @@ def _render_dashboard_js() -> str:
   }
 
   function connectSSE() {
-    if (!sseEnabled || typeof window.EventSource === "undefined") {
-      return;
+    if (!sseEnabled || typeof window.EventSource === "undefined" || sse) {
+      return false;
     }
     try {
       sse = new window.EventSource("/events");
     } catch (e) {
       sse = null;
-      return;
+      return false;
     }
     sse.onopen = function () {
       sseConnected = true;
+      offlineProbeUntil = 0;
+      nextReconnectAt = 0;
+      if (refreshState !== "PAUSED" && refreshState !== "FROZEN") {
+        refreshState = "LIVE";
+      }
       renderRefresh();
     };
     sse.onerror = function () {
-      sseConnected = false;
+      var probing = offlineProbeUntil > 0;
+      disconnectSSE();
+      if (refreshState === "PAUSED" || refreshState === "FROZEN") {
+        renderRefresh();
+        return;
+      }
+      if (!probing) {
+        goOffline();
+        return;
+      }
       renderRefresh();
     };
     sse.onmessage = function (evt) {
       try {
         var payload = JSON.parse(evt.data || "{}");
         var incoming = String(payload.generated_at || "");
+        if (!incoming && isTerminalStatus(String(payload.project_status || "").toLowerCase())) {
+          freezeTerminal();
+          return;
+        }
         if (incoming && incoming !== lastGeneratedAt) {
           lastGeneratedAt = incoming;
           reloadNow();
         }
       } catch (e) {}
     };
+    return true;
+  }
+
+  function armOfflineProbe() {
+    offlineProbeUntil = Date.now() + REFRESH_MS;
+    nextReconnectAt = 0;
+    disconnectSSE();
+    setRefreshState("ON");
   }
 
   function fmtAge(seconds) {
@@ -1887,12 +1961,15 @@ def _render_dashboard_js() -> str:
 
   function renderRefresh() {
     if (elStatus) {
-      var stateLabel = enabled ? "ON" : "PAUSED";
-      if (enabled && sseEnabled && sseConnected) stateLabel = "LIVE";
+      var stateLabel = refreshState;
+      var className = "badge badge-on";
+      if (refreshState === "PAUSED") className = "badge badge-off";
+      else if (refreshState === "FROZEN") className = "badge badge-frozen";
+      else if (refreshState === "OFFLINE") className = "badge badge-offline";
       elStatus.textContent = stateLabel;
-      elStatus.className = enabled ? "badge badge-on" : "badge badge-off";
+      elStatus.className = className;
     }
-    if (elToggle) elToggle.textContent = enabled ? "Pause" : "Resume";
+    if (elToggle) elToggle.textContent = (refreshState === "ON" || refreshState === "LIVE") ? "Pause" : "Resume";
   }
 
   function tick() {
@@ -1901,12 +1978,39 @@ def _render_dashboard_js() -> str:
     if (!isNaN(genAtMs) && (now - genAtMs) > STALE_AFTER_MS) show(elStale, true);
     else show(elStale, false);
 
-    if (!enabled) {
+    if (refreshState === "PAUSED") {
       setText(elCountdown, "paused");
       return;
     }
-    if (sseEnabled && sseConnected) {
+    if (refreshState === "FROZEN") {
+      setText(elCountdown, "frozen");
+      return;
+    }
+    if (refreshState === "OFFLINE") {
+      setText(elCountdown, "feed lost");
+      return;
+    }
+    if (refreshState === "LIVE" && sseEnabled && sseConnected) {
       setText(elCountdown, "live");
+      return;
+    }
+    if (offlineProbeUntil > 0) {
+      if (!sseConnected && !sse && now >= nextReconnectAt) {
+        nextReconnectAt = now + RECONNECT_STEP_MS;
+        connectSSE();
+      }
+      if (sseConnected) {
+        offlineProbeUntil = 0;
+        nextReconnectAt = 0;
+        setText(elCountdown, "live");
+        return;
+      }
+      if (now >= offlineProbeUntil) {
+        goOffline();
+        setText(elCountdown, "feed lost");
+        return;
+      }
+      setText(elCountdown, "retry " + Math.ceil((offlineProbeUntil - now) / 1000) + "s");
       return;
     }
     var remaining = Math.max(0, nextAt - now);
@@ -1916,10 +2020,23 @@ def _render_dashboard_js() -> str:
 
   if (elToggle) {
     elToggle.addEventListener("click", function () {
-      enabled = !enabled;
-      lsSet(LS_REFRESH, enabled ? "1" : "0");
-      nextAt = Date.now() + REFRESH_MS;
-      renderRefresh();
+      if (refreshState === "ON" || refreshState === "LIVE") {
+        offlineProbeUntil = 0;
+        nextReconnectAt = 0;
+        disconnectSSE();
+        lsSet(LS_REFRESH, "0");
+        setRefreshState("PAUSED");
+      } else {
+        lsSet(LS_REFRESH, "1");
+        nextAt = Date.now() + REFRESH_MS;
+        if (refreshState === "OFFLINE") armOfflineProbe();
+        else {
+          offlineProbeUntil = 0;
+          nextReconnectAt = 0;
+          setRefreshState("ON");
+          connectSSE();
+        }
+      }
       tick();
     });
   }
@@ -1931,15 +2048,19 @@ def _render_dashboard_js() -> str:
 
   applyWsCollapse();
   applyFilters();
-  connectSSE();
-  renderRefresh();
+  if (isTerminalStatus(rootProjectStatus) || rootMonitorStatus === "terminal") {
+    freezeTerminal();
+  } else {
+    if (refreshState !== "PAUSED") {
+      connectSSE();
+    }
+    renderRefresh();
+  }
   tick();
   restoreScroll();
   window.addEventListener("beforeunload", function () {
     saveScroll();
-    if (sse) {
-      try { sse.close(); } catch (e) {}
-    }
+    disconnectSSE();
   });
   window.setInterval(tick, 250);
 })();
@@ -2738,7 +2859,10 @@ def render_html(payload: dict) -> str:
 
     return (
         f"<!doctype html>\n"
-        f"<html lang=\"en\" data-generated-at=\"{generated_at}\">\n"
+        f"<html lang=\"en\" data-generated-at=\"{generated_at}\" "
+        f"data-project-status=\"{html_escape(str(proj.get('status') or ''))}\" "
+        f"data-monitor-status=\"{html_escape(monitor_status)}\" "
+        f"data-monitor-cleanup-status=\"{html_escape(monitor_cleanup_status)}\">\n"
         "<head>\n"
         "  <meta charset=\"utf-8\">\n"
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"

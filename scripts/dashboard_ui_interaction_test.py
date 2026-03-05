@@ -77,7 +77,11 @@ def main() -> None:
 
         required_markers = [
             "TheWorkshop Dashboard",
+            "data-project-status=\"planned\"",
+            "data-monitor-status=\"unknown\"",
             "id=\"twQuery\"",
+            "id=\"twRefreshToggle\"",
+            "id=\"twRefreshStatus\"",
             "id=\"twFocusAll\"",
             "id=\"twFocusAtRisk\"",
             "id=\"twFocusActive\"",

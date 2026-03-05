@@ -77,6 +77,14 @@ def main() -> None:
             if not (project_root / rel).exists():
                 raise RuntimeError(f"Expected canonical dashboard artifact to remain: {rel}")
 
+        dashboard_payload = json.loads((project_root / "outputs" / "dashboard.json").read_text(encoding="utf-8"))
+        if str((dashboard_payload.get("project") or {}).get("status") or "") != "cancelled":
+            raise RuntimeError(f"Expected dashboard project.status=cancelled after closeout: {dashboard_payload}")
+
+        dashboard_html = (project_root / "outputs" / "dashboard.html").read_text(encoding="utf-8", errors="ignore")
+        if 'data-project-status="cancelled"' not in dashboard_html:
+            raise RuntimeError("Expected terminal dashboard HTML to expose data-project-status=cancelled")
+
     print("TERMINAL CLEANUP TEST PASSED")
 
 

@@ -104,6 +104,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def _build_update_payload(self) -> dict:
         generated_at = ""
         mtime = 0.0
+        project_status = ""
+        monitor_status = ""
+        cleanup_status = ""
         if self.server.dashboard_json.exists():
             try:
                 mtime = float(self.server.dashboard_json.stat().st_mtime)
@@ -111,13 +114,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 mtime = 0.0
             try:
                 payload = json.loads(self.server.dashboard_json.read_text(encoding="utf-8"))
-                generated_at = str(payload.get("generated_at") or "") if isinstance(payload, dict) else ""
+                if isinstance(payload, dict):
+                    generated_at = str(payload.get("generated_at") or "")
+                    project = payload.get("project") if isinstance(payload.get("project"), dict) else {}
+                    monitor_state = payload.get("monitor_state") if isinstance(payload.get("monitor_state"), dict) else {}
+                    project_status = str(project.get("status") or "")
+                    monitor_status = str(monitor_state.get("status") or "")
+                    cleanup_status = str(monitor_state.get("cleanup_status") or "")
             except Exception:
                 generated_at = ""
+                project_status = ""
+                monitor_status = ""
+                cleanup_status = ""
         return {
             "generated_at": generated_at,
             "dashboard_mtime": mtime,
             "dashboard_json": str(self.server.dashboard_json),
+            "project_status": project_status,
+            "monitor_status": monitor_status,
+            "cleanup_status": cleanup_status,
         }
 
 
