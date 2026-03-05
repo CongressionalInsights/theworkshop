@@ -2,6 +2,12 @@
 
 ## Overview
 
+This repo is the **public OSS baseline** for TheWorkshop.
+
+- The public contract covers the portable local framework plus optional adapters.
+- Private/custom operator overlays are separate and are not standardized here.
+- Adapter-backed capabilities should fail only when explicitly selected.
+
 TheWorkshop runs in two stages:
 
 1. **Plan (agree first)**: intake -> decomposition -> optimization -> success hooks -> explicit agreement.
@@ -39,6 +45,20 @@ Runner behavior:
 - dispatches runnable jobs from the on-disk project graph
 - emits runner telemetry to `logs/workflow-runner.jsonl`
 - writes live state to `tmp/workflow-runner.json`
+
+## Optional Adapters
+
+The portable/core workflow path does not require every integration shipped in the repo.
+
+Optional adapters include:
+- Codex telemetry / CodexBar spend
+- Gemini / OpenAI council planners
+- Apple Keychain credential path
+- imagegen skill bridge
+- GitHub mirroring
+
+Use `python3 scripts/doctor.py --profile codex` for the Codex-first path and
+`python3 scripts/doctor.py --profile portable` for the portable public baseline.
 
 ## Stage 1: Plan (Agree First)
 

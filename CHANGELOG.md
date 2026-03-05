@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Repo-Only OSS Packaging Pass
+- Reframed the repo as the **public OSS baseline** for TheWorkshop, distinct from any private/custom local operator overlays.
+- Added a profile-aware preflight surface:
+  - `python3 scripts/doctor.py --profile codex|portable`
+- Reclassified public integrations as **optional adapters** in docs and adapter-backed command behavior:
+  - Codex telemetry / CodexBar
+  - Gemini / OpenAI council planners
+  - Apple Keychain
+  - imagegen skill bridge
+  - GitHub mirroring
+- Added shared runtime-profile helper logic so sibling-skill paths and adapter detection are not hard-coded independently across scripts.
+- Added regression coverage for:
+  - portable vs codex doctor behavior
+  - optional council planner adapter boundary
+  - OSS packaging docs consistency
+
 ## 2026-03-02 (`v0.2.2`)
 
 ### Monitor Policy Hardening

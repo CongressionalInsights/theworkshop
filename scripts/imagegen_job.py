@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from twlib import codex_home, normalize_str_list, now_iso, read_md, resolve_project_root
+from runtime_profile import skill_script_path
+from twlib import normalize_str_list, now_iso, read_md, resolve_project_root
 
 
 THEWORKSHOP_IMAGEGEN_API_KEY = "THEWORKSHOP_IMAGEGEN_API_KEY"
@@ -69,7 +70,7 @@ def resolve_keychain_runner(env: Mapping[str, str] | None = None) -> Path:
     override = env_root.get(THEWORKSHOP_KEYCHAIN_RUNNER, "").strip()
     if override:
         return Path(override).expanduser()
-    return codex_home() / "skills" / "apple-keychain" / "scripts" / "keychain_run.sh"
+    return skill_script_path("apple-keychain", "scripts/keychain_run.sh", env=env_root)
 
 
 def check_keychain_available(runner: Path | None = None, *, env: Mapping[str, str] | None = None) -> bool:
@@ -370,7 +371,7 @@ def main() -> None:
     jobs, prompt_out_paths = parse_prompts_jsonl(prompts_path, out_dir)
     declared_pngs = declared_png_outputs(job_dir)
 
-    imagegen_cli = codex_home() / "skills" / "imagegen" / "scripts" / "image_gen.py"
+    imagegen_cli = skill_script_path("imagegen", "scripts/image_gen.py")
 
     uv_bin = shutil.which("uv")
     if uv_bin:

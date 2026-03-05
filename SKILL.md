@@ -9,6 +9,12 @@ Use this skill in **Codex and Claude Code** to run mixed coding and non-coding p
 
 TheWorkshop is **operatorless**: the user does not run terminal commands. Codex executes scripts directly and only asks the user for **click-only** permissions when required (auth, keychain, etc.).
 
+This repository is the **public OSS baseline** for TheWorkshop.
+
+- It defines the public/local-framework contract and the optional adapters that ship in the repo.
+- It does **not** standardize private/custom operator workflows outside the repo.
+- Adapter-backed capabilities are optional unless the current command explicitly selects them.
+
 ## Core principles (non-negotiable)
 
 - **Project-first**: the project is the primary unit.
@@ -58,8 +64,8 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - `workflow_check.py` validates and prints the effective contract.
   - `workflow_runner.py` runs a Symphony-style local service loop over the on-disk project graph.
 - **Optional council planning mode**: run multi-planner synthesis before agreement lock.
-  - `council_plan.py` uses Gemini CLI planners by default.
-  - OpenAI planners are supported through `$apple-keychain` with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
+  - `council_plan.py` uses planner adapters; Gemini CLI is the default public adapter when available.
+  - OpenAI planners are supported through the optional `$apple-keychain` adapter with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
   - Council artifacts: `outputs/council/council-plan.json`, `outputs/council/final-plan.md`
 - **Schema hardening**: validate machine artifacts with shipped JSON schemas in `schemas/`.
   - `schema_validate.py` validates orchestration/truth/rewards/dashboard payloads.
@@ -67,7 +73,7 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **Image generation first-class**: for image jobs, run `imagegen_job.py` so key retrieval, imagegen execution, output validation, and verification logging are consistent.
   - OSS-first API env: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred and cross-platform)
   - Compatibility env aliases: `OPENAI_API_KEY`, `OPENAI_KEY` (legacy, fallback only)
-  - Optional keychain mode for macOS via `$apple-keychain`: `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
+  - Optional keychain adapter for macOS via `$apple-keychain`: `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
   - Opt-out (tests/headless): set `THEWORKSHOP_NO_KEYCHAIN=1`
   - Headless/no-GUI approval fallback: set `CODEX_KEYCHAIN_APPROVE=1` when keychain dialog cannot attach to a TTY/window.
 - **PDF truth test portability**: `scripts/truth_gate_pdf_test.py` discovers a local Chrome/Chromium binary (via `THEWORKSHOP_PDF_BROWSER`/`THEWORKSHOP_CHROME_PATH` or system PATH) and exits with `TRUTH GATE PDF TEST SKIPPED` on unsupported platforms.
@@ -178,7 +184,8 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/imagegen_job.py --project /path/to/project --work-item-id WI-...
 
 # Reliability preflight
-{baseDir}/scripts/doctor.py
+{baseDir}/scripts/doctor.py --profile codex
+{baseDir}/scripts/doctor.py --profile portable
 {baseDir}/scripts/health.py --project /path/to/project --repair
 
 # Quick ad-hoc lane (separate from workstream/job graph)

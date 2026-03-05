@@ -54,6 +54,8 @@ jobs:
             scripts/imagegen_job_test.py
             scripts/imagegen_keychain_retry_test.py
             scripts/doctor_test.py
+            scripts/council_plan_adapter_boundary_test.py
+            scripts/oss_packaging_docs_test.py
             scripts/schema_validate_test.py
             scripts/job_profile_test.py
             scripts/lessons_apply_test.py

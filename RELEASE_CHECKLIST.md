@@ -13,6 +13,8 @@
 
 - [ ] `README.md` reflects current behavior and install/update path
 - [ ] `SKILL.md` matches runtime/operator contract
+- [ ] Docs clearly distinguish the **public OSS baseline** from private/custom local workflows
+- [ ] Docs consistently describe optional adapters vs core workflow behavior
 - [ ] Gate semantics are consistent across docs (agreement/dependency+freshness/truth/reward)
 - [ ] Telemetry semantics are consistent across docs:
   - canonical subagent telemetry in `logs/agents.jsonl`
@@ -42,6 +44,8 @@ python3 scripts/dashboard_subscription_cost_display_test.py
 python3 scripts/imagegen_job_test.py
 python3 scripts/imagegen_keychain_retry_test.py
 python3 scripts/doctor_test.py
+python3 scripts/council_plan_adapter_boundary_test.py
+python3 scripts/oss_packaging_docs_test.py
 python3 scripts/job_profile_test.py
 python3 scripts/lessons_apply_test.py
 python3 scripts/plan_check_content_quality_test.py
@@ -84,6 +88,8 @@ gh label create "docs" --color 0075CA --description "Documentation" || true
 ## 6. Post-Release Health
 
 - [ ] `README` release badge resolves latest tag
+- [ ] `python3 scripts/doctor.py --profile codex` passes in the intended Codex release environment
+- [ ] `python3 scripts/doctor.py --profile portable` passes in the portable/core public baseline environment
 - [ ] Issue templates and PR template render correctly
 - [ ] Pinned discussion / known limitations issue updated for current release
 - [ ] `Unreleased` section in `CHANGELOG.md` reset for next cycle

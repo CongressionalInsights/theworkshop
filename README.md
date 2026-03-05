@@ -41,6 +41,43 @@ The diagram below shows TheWorkshop's control plane (planning, gating, orchestra
 - A generic code framework or web app product
 - A system that marks work complete on artifact presence alone
 
+## Public Baseline Vs. Local Custom
+
+This repository is the **public OSS baseline** for TheWorkshop.
+
+- It defines the portable local framework and the optional adapters that ship in the public repo.
+- It does **not** claim to contain or standardize private/custom operator workflows.
+- Richer local/custom versions can exist separately, but they are outside the contract of this repository.
+
+## Portable Local Framework Profile
+
+The repo remains **Codex-first** in top-level docs, but the public package is intentionally usable as a **portable local framework**.
+
+Portable/core path:
+- project/workstream/job lifecycle and gates
+- dashboard build/projector and local monitoring
+- workflow contract and workflow runner
+- schemas, examples, and regression suite
+
+Optional adapters:
+- Codex session telemetry / CodexBar spend
+- Gemini / OpenAI council planning
+- Apple Keychain credential path
+- imagegen skill bridge
+- GitHub mirroring
+
+Capability matrix:
+
+| Capability | Portable core | Codex-enhanced | Optional adapter |
+| --- | --- | --- | --- |
+| Lifecycle / gates | Yes | Yes | No |
+| Dashboard / runtime | Yes | Yes | No |
+| Workflow runner | Yes | Yes | No |
+| Billing / spend telemetry | Fallback / unknown | Yes | Codex session logs / CodexBar |
+| Council planning | Dry-run only | Yes | Gemini / OpenAI |
+| Image generation | No | Yes | imagegen skill / keychain |
+| GitHub mirror | No | Yes | `gh` |
+
 ## Core Model
 
 - `Project`: top-level outcome and success definition
@@ -151,14 +188,14 @@ Expected core outputs:
   - publishes `/events` SSE updates so the page can switch from poll mode to live mode
 - `monitor_runtime.py` owns dashboard open/watch/serve/stop/cleanup so repeated lifecycle events reuse the same runtime instead of spawning fresh browser/server state
 - Project terminal closeout prunes transient runtime artifacts while preserving canonical outputs, logs, and dashboard artifacts
-- Cost display is billing-aware:
+- Cost display is billing-aware when the **Codex telemetry adapter** is available:
   - `subscription_auth`: billed cost shown as `$0` marginal, API-equivalent shown secondarily
   - `metered_api`: billed cost from exact telemetry when available
   - `unknown`: estimate-first fallback
 
 ## Image Generation Path
 
-Use work-item scoped image generation:
+Use work-item scoped image generation through the **optional imagegen adapter**:
 
 ```bash
 python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002
@@ -190,7 +227,8 @@ The `apple-keychain` skill remains optional and cross-platform fallback behavior
 ## Reliability Checks
 
 ```bash
-python3 scripts/doctor.py
+python3 scripts/doctor.py --profile codex
+python3 scripts/doctor.py --profile portable
 cd scripts && for t in *_test.py; do python3 "$t"; done
 ```
 
