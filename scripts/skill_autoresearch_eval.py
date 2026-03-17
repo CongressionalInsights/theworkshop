@@ -155,6 +155,22 @@ def summarize_stdout(stdout: str, stderr: str) -> dict[str, str]:
     }
 
 
+def _scored_payload(text: str, bench_id: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(text)
+    except Exception as exc:
+        raise SystemExit(f"Benchmark {bench_id!r} did not return valid JSON score payload: {exc}")
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Benchmark {bench_id!r} score payload must be a JSON object")
+    score = _float(payload.get("score"), -1.0)
+    max_score = _float(payload.get("max_score"), -1.0)
+    if score < 0 or max_score <= 0 or score > max_score:
+        raise SystemExit(
+            f"Benchmark {bench_id!r} returned invalid score payload: score={score} max_score={max_score}"
+        )
+    return payload
+
+
 def run_benchmark(repo: Path, item: dict[str, Any], default_timeout: int) -> dict[str, Any]:
     bench_id = _string(item.get("id")) or "unnamed"
     command = item.get("command")
@@ -163,6 +179,7 @@ def run_benchmark(repo: Path, item: dict[str, Any], default_timeout: int) -> dic
 
     timeout_sec = _int(item.get("timeout_sec"), default_timeout)
     weight = _float(item.get("weight"), 1.0)
+    mode = _string(item.get("mode")) or "binary"
     start = time.time()
     try:
         proc = run(["sh", "-lc", command], cwd=repo, timeout_sec=timeout_sec, check=False)
@@ -181,14 +198,33 @@ def run_benchmark(repo: Path, item: dict[str, Any], default_timeout: int) -> dic
         "id": bench_id,
         "label": _string(item.get("label")) or bench_id,
         "command": command,
+        "mode": mode,
         "weight": weight,
         "timeout_sec": timeout_sec,
         "duration_sec": duration_sec,
         "exit_code": exit_code,
-        "passed": passed,
         "timed_out": timed_out,
     }
     result.update(summarize_stdout(stdout, stderr))
+    if mode == "json_score" and not timed_out and exit_code == 0:
+        payload = _scored_payload(stdout, bench_id)
+        score = _float(payload.get("score"), 0.0)
+        max_score = _float(payload.get("max_score"), 1.0)
+        result["score"] = score
+        result["max_score"] = max_score
+        result["passed"] = score >= max_score
+        result["fraction"] = score / max_score if max_score > 0 else 0.0
+        checks = payload.get("checks")
+        if isinstance(checks, list):
+            result["checks"] = checks
+        summary = _string(payload.get("summary"))
+        if summary:
+            result["summary"] = summary
+    else:
+        result["passed"] = passed
+        result["score"] = 1.0 if passed else 0.0
+        result["max_score"] = 1.0
+        result["fraction"] = 1.0 if passed else 0.0
     return result
 
 
@@ -196,8 +232,8 @@ def compute_score(results: list[dict[str, Any]]) -> int:
     total = sum(max(0.0, float(item.get("weight") or 0.0)) for item in results)
     if total <= 0:
         return 100
-    passed = sum(float(item.get("weight") or 0.0) for item in results if item.get("passed"))
-    return max(0, min(100, int(round((passed / total) * 100))))
+    earned = sum(float(item.get("weight") or 0.0) * float(item.get("fraction") or 0.0) for item in results)
+    return max(0, min(100, int(round((earned / total) * 100))))
 
 
 def write_results_tsv(path: Path, payload: dict[str, Any], description: str) -> None:
@@ -247,21 +283,38 @@ def markdown_report(payload: dict[str, Any]) -> str:
         for path in dirty:
             lines.append(f"- `{path}`")
         lines.append("")
-    lines.extend(
+        lines.extend(
         [
             "## Benchmarks",
             "",
-            "| Benchmark | Status | Weight | Duration (s) |",
-            "| --- | --- | ---: | ---: |",
+            "| Benchmark | Status | Score | Weight | Duration (s) |",
+            "| --- | --- | ---: | ---: | ---: |",
         ]
     )
     for item in payload.get("benchmarks", []):
-        status = "pass" if item.get("passed") else "fail"
+        fraction = float(item.get("fraction") or 0.0)
+        if fraction >= 1.0:
+            status = "pass"
+        elif fraction <= 0.0:
+            status = "fail"
+        else:
+            status = "partial"
+        score_cell = f"{float(item.get('score') or 0.0):.1f}/{float(item.get('max_score') or 0.0):.1f}"
         lines.append(
-            f"| {item.get('id')} | {status} | {float(item.get('weight') or 0.0):.1f} | {float(item.get('duration_sec') or 0.0):.3f} |"
+            f"| {item.get('id')} | {status} | {score_cell} | {float(item.get('weight') or 0.0):.1f} | {float(item.get('duration_sec') or 0.0):.3f} |"
         )
+        checks = item.get("checks") if isinstance(item.get("checks"), list) else []
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            cid = _string(check.get("id")) or "check"
+            cscore = _float(check.get("score"), 0.0)
+            cmax = _float(check.get("max_score"), 0.0)
+            message = _string(check.get("message"))
+            marker = "ok" if cscore >= cmax and cmax > 0 else "gap"
+            lines.append(f"  - `{cid}` `{cscore:.1f}/{cmax:.1f}` {marker} {message}".rstrip())
     if not payload.get("benchmarks"):
-        lines.append("| (none) | skipped | 0.0 | 0.000 |")
+        lines.append("| (none) | skipped | 0.0/0.0 | 0.0 | 0.000 |")
     return "\n".join(lines).rstrip() + "\n"
 
 

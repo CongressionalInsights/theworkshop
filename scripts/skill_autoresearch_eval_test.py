@@ -72,6 +72,13 @@ def main() -> None:
                             "command": "python3 -c \"print('ok')\"",
                             "weight": 1,
                             "timeout_sec": 10,
+                        },
+                        {
+                            "id": "score",
+                            "mode": "json_score",
+                            "command": "python3 -c \"import json; print(json.dumps({'score': 3, 'max_score': 5, 'checks': [{'id': 'partial', 'score': 3, 'max_score': 5, 'message': 'room to improve'}]}))\"",
+                            "weight": 1,
+                            "timeout_sec": 10
                         }
                     ],
                 },
@@ -99,13 +106,19 @@ def main() -> None:
                 str(results_tsv),
                 "--description",
                 "baseline",
-            ]
+            ],
+            check=False,
         )
+        if baseline.returncode == 0:
+            raise RuntimeError(f"Expected partial-credit pack to exit nonzero, got:\n{baseline.stdout}\n{baseline.stderr}")
         payload = json.loads(baseline.stdout)
-        if payload.get("status") != "pass":
-            raise RuntimeError(f"Expected baseline pass, got:\n{baseline.stdout}\n{baseline.stderr}")
-        if payload.get("score") != 100:
-            raise RuntimeError(f"Expected score 100, got {payload.get('score')}")
+        if payload.get("status") != "fail":
+            raise RuntimeError(f"Expected partial-credit baseline to remain fail, got:\n{baseline.stdout}\n{baseline.stderr}")
+        if payload.get("score") != 80:
+            raise RuntimeError(f"Expected score 80, got {payload.get('score')}")
+        benchmarks = payload.get("benchmarks") if isinstance(payload.get("benchmarks"), list) else []
+        if len(benchmarks) != 2 or float(benchmarks[1].get("fraction") or 0.0) != 0.6:
+            raise RuntimeError(f"Expected scored benchmark fraction 0.6, got:\n{baseline.stdout}")
         if payload.get("scope_ok") is not True or payload.get("worktree_clean") is not True:
             raise RuntimeError(f"Expected clean scope/worktree, got:\n{baseline.stdout}")
         results_lines = results_tsv.read_text(encoding="utf-8").splitlines()

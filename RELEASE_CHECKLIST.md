@@ -69,6 +69,7 @@ python3 scripts/learning_curate_test.py
 python3 scripts/loop_job_test.py
 python3 scripts/plan_check_content_quality_test.py
 python3 scripts/skill_autoresearch_eval_test.py
+python3 scripts/skill_surface_contract_score.py --repo .
 python3 scripts/smoke_test.py
 python3 scripts/sample_scenario_test.py
 ```

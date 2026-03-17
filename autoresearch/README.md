@@ -37,7 +37,7 @@ The evaluator:
 
 - enforces the writable surface by diffing the current commit against `--diff-ref`
 - rejects dirty worktrees by default
-- runs weighted benchmarks
+- runs weighted benchmarks, including optional partial-credit scored benchmarks
 - computes a single `0-100` score
 - optionally appends run summaries to `state/autoresearch/results.tsv`
 
