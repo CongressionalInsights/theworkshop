@@ -270,8 +270,8 @@ Default execution split:
 
 Preferred role mapping:
 - `explorer` or repo-specific explorer agents for mapping and fact-finding
-- `worker` or repo-specific worker agents for bounded execution
-- `default` or reviewer-style agents for QA, verification, and closeout synthesis
+- `worker` or repo-specific worker agents for bounded execution against the current job plan, declared outputs, and verification path
+- `default` or reviewer-style agents for QA, verification, and closeout synthesis against acceptance criteria, evidence, and gate state
 
 Agent surface ownership:
 - shared global agent library: `~/.codex/agents/*.toml`
