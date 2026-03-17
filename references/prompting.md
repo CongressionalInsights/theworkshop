@@ -48,6 +48,12 @@ Verification should reference on-disk evidence:
 Completion promises must be objectively true and only emitted at the end:
 - `<promise>WI-20260214-001-DONE</promise>`
 
+Loop-safe prompts should be self-sufficient:
+- restate the exact work-item scope and output paths
+- name the deterministic verification steps or commands
+- point to any existing artifacts the next attempt should inspect first
+- assume filesystem state persists but conversational memory does not
+
 For image-asset jobs, planning should include a credential setup note:
 - Default env credential: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred for OSS compatibility).
 - Fallback note (legacy): `OPENAI_API_KEY` / `OPENAI_KEY` may continue to work if already configured.
@@ -72,6 +78,11 @@ Then run the execution command chosen for this WI:
 
 - `theworkshop loop --project <path> --work-item-id WI-...`
 - append `--mode`, `--max-loops`, `--completion-promise`, and `--max-walltime-sec` as needed
+
+When a looped WI uses a custom prompt, make sure it tells each attempt to:
+- re-open the current job plan and existing outputs/evidence before making changes
+- produce filesystem-visible progress, not just narrative status
+- emit the completion promise only after acceptance criteria and verification evidence are satisfied
 
 ## Intent lock before execution (`theworkshop discuss`)
 
