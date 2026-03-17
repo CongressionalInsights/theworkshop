@@ -467,7 +467,7 @@ def read_subagent_telemetry(project_root: Path, *, recent_limit: int = 12) -> tu
             "path": str(path.relative_to(project_root)),
             "counts": {"active": 0, "completed": 0, "failed": 0},
             "recent_events": [],
-            "telemetry_note": "No sub-agent telemetry found. Use `theworkshop dispatch` or `theworkshop agent-log` when delegating manually.",
+            "telemetry_note": "No sub-agent telemetry found. Use `theworkshop dispatch` or `theworkshop agent-log`/`theworkshop agent-closeout` when delegating manually.",
         }
     else:
         subagents = {

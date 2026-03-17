@@ -142,6 +142,11 @@ If looping is planned as the main execution path, call:
 
 - `theworkshop loop --project <path> --work-item-id WI-... --mode ... [--max-loops ...] [--completion-promise ...]`
 
+Loop-specific learning policy:
+- loop attempts may stage lesson candidates and memory proposals only
+- loop attempts must not write durable memory files directly
+- curator promotion happens after terminal loop state, not after every attempt
+
 ### Step 7: Agreement Gate
 
 Before execution begins, record agreement in project `plan.md`:
@@ -243,17 +248,56 @@ Gate interaction:
 - `reward_eval.py` uses unresolved UAT issues to lower reward score and drive next-action hints.
 - `job_complete.py` blocks completion when unresolved UAT issues exist.
 
-### Orchestration + agent log flow (required when delegation is enabled)
+### Orchestration + native subagent flow (required when delegation is enabled)
 
 When the execution loop can run independent jobs in parallel:
 1. Run `orchestrate_plan.py` to produce `outputs/orchestration.json` with deterministic parallel groups and critical path.
-2. If 2 or more runnable independent jobs exist and `subagent_policy != off`, run `dispatch_orchestration.py` to execute runnable groups (respecting max parallel limits).
+2. If 2 or more runnable independent jobs exist, `subagent_policy != off`, and the current prompt explicitly authorizes subagents or parallel agent work, run `dispatch_orchestration.py` to turn runnable groups into native Codex subagent work (respecting max parallel limits).
 3. Delegation telemetry contract:
    - Canonical stream for all delegation paths: `logs/agents.jsonl`
    - Dispatch compatibility/diagnostic stream: `logs/subagent-dispatch.jsonl`
    - Dispatch execution summary: `outputs/orchestration-execution.json`
    - Event fields include additive routing metadata when available: `source`, `dispatch_run_id`, `group_index`
+   - Learning promotion counts should ride on canonical agent telemetry or loop summaries, not on ad hoc notes
 4. Rebuild dashboard artifacts so orchestration, dispatch, and sub-agent telemetry stays visible.
+
+Default execution split:
+- Keep the parent thread on planning, integration, acceptance checks, and final synthesis.
+- Use read-heavy subagents for exploration, dependency checks, review, test triage, and evidence gathering.
+- Use write-capable subagents only when ownership is disjoint and the work is bounded.
+- Subagents may read durable memory but must stage new memory/lesson findings instead of editing durable memory or canonical lesson files directly.
+- If two candidate jobs touch the same write scope, keep them serial or merge them into one owner.
+
+Preferred role mapping:
+- `explorer` or repo-specific explorer agents for mapping and fact-finding
+- `worker` or repo-specific worker agents for bounded execution
+- `default` or reviewer-style agents for QA, verification, and closeout synthesis
+
+Agent surface ownership:
+- shared global agent library: `~/.codex/agents/*.toml`
+- runtime agent definitions: `.codex/agents/*.toml`
+- runtime limits: `.codex/config.toml`
+- planning metadata and retry/budget defaults: `references/agents/*.json`
+- canonical job-local selector on jobs: `agent_profile`
+- derived runtime-preserving fields on jobs: `dispatch_budget`, `retry_limit`
+- historical plans should be normalized with `scripts/normalize_agent_profiles.py`
+
+Parent-thread lifecycle:
+1. Spawn only after the objective, scope, outputs, and ownership boundary are clear.
+2. Continue useful non-overlapping work locally instead of waiting by reflex.
+3. Wait when the next critical-path step depends on a subagent result.
+4. Integrate the result, update project state, and close the agent thread.
+
+### Direct native subagent path (allowed)
+
+Dispatch is the preferred control-plane path when orchestration artifacts already exist, but direct native subagent spawning from the parent thread is also allowed for one-off bounded tasks.
+
+When using the direct path:
+- still honor `subagent_policy`, max parallel limits, and write-scope separation
+- still honor staged learning rules: stage candidates first, curate/promote later
+- log spawned/progress/intermediate lifecycle events with `theworkshop agent-log`
+- end the run with `theworkshop agent-closeout` exactly once so dashboard telemetry stays truthful and staged learning is promoted once per agent run
+- summarize results back into the parent thread instead of copying raw intermediate logs
 
 ### Optional council planning mode (pre-agreement)
 

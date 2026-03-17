@@ -14,19 +14,19 @@ SKILL_ROOT = SCRIPT_DIR.parent
 DEFAULT_REGISTRY_DIR = SKILL_ROOT / "references" / "agents"
 
 ALIAS_TO_PROFILE = {
-    "default": "worker",
-    "worker": "worker",
-    "implementer": "worker",
-    "builder": "worker",
-    "explorer": "explorer",
-    "research": "explorer",
-    "investigate": "explorer",
-    "analysis": "explorer",
-    "review": "reviewer",
-    "reviewer": "reviewer",
-    "qa": "reviewer",
-    "verify": "reviewer",
-    "closeout": "reviewer",
+    "default": "theworkshop_worker",
+    "worker": "theworkshop_worker",
+    "implementer": "theworkshop_worker",
+    "builder": "theworkshop_worker",
+    "explorer": "theworkshop_explorer",
+    "research": "theworkshop_explorer",
+    "investigate": "theworkshop_explorer",
+    "analysis": "theworkshop_explorer",
+    "review": "theworkshop_reviewer",
+    "reviewer": "theworkshop_reviewer",
+    "qa": "theworkshop_reviewer",
+    "verify": "theworkshop_reviewer",
+    "closeout": "theworkshop_reviewer",
 }
 
 
@@ -52,6 +52,12 @@ def _load_registry() -> dict[str, dict[str, Any]]:
         payload.setdefault("name", name)
         payload["_path"] = str(path)
         registry[name] = payload
+        aliases = payload.get("legacy_aliases")
+        if isinstance(aliases, list):
+            for alias in aliases:
+                token = str(alias or "").strip().lower()
+                if token and token not in registry:
+                    registry[token] = payload
     return registry
 
 
@@ -65,10 +71,20 @@ def _find_job_plan(project_root: Path, wi: str) -> Path:
 def _profile_from_mode(mode: str) -> str:
     token = (mode or "").strip().lower()
     if token in {"review", "verify", "qa", "closeout"}:
-        return "reviewer"
+        return "theworkshop_reviewer"
     if token in {"investigate", "research", "analyze", "analysis"}:
-        return "explorer"
-    return "worker"
+        return "theworkshop_explorer"
+    return "theworkshop_worker"
+
+
+def _runtime_agent_name(profile: dict[str, Any], profile_name: str) -> str:
+    value = str(profile.get("runtime_agent_name") or profile_name or "").strip()
+    return value
+
+
+def _fallback_agent_type(profile: dict[str, Any]) -> str:
+    value = str(profile.get("builtin_fallback_agent_type") or profile.get("agent_type") or "worker").strip().lower()
+    return value or "worker"
 
 
 def _resolve_profile_name(frontmatter: dict[str, Any], registry: dict[str, dict[str, Any]]) -> tuple[str, str]:
@@ -81,20 +97,14 @@ def _resolve_profile_name(frontmatter: dict[str, Any], registry: dict[str, dict[
     if mode_profile in registry and mode:
         return mode_profile, f"frontmatter.orchestration_mode={mode}"
 
-    hint = str(frontmatter.get("agent_type_hint") or "").strip().lower()
-    if hint:
-        hinted = ALIAS_TO_PROFILE.get(hint, hint)
-        if hinted in registry:
-            return hinted, f"frontmatter.agent_type_hint={hint}"
-
     stakes = str(frontmatter.get("stakes") or "").strip().lower()
-    if stakes in {"critical", "high"} and "reviewer" in registry:
-        return "reviewer", f"stakes={stakes}"
-    if stakes in {"low", "normal"} and "worker" in registry:
-        return "worker", f"stakes={stakes}"
+    if stakes in {"critical", "high"} and "theworkshop_reviewer" in registry:
+        return "theworkshop_reviewer", f"stakes={stakes}"
+    if stakes in {"low", "normal"} and "theworkshop_worker" in registry:
+        return "theworkshop_worker", f"stakes={stakes}"
 
-    if "worker" in registry:
-        return "worker", "fallback worker"
+    if "theworkshop_worker" in registry:
+        return "theworkshop_worker", "fallback worker"
 
     if registry:
         first = sorted(registry.keys())[0]
@@ -131,17 +141,22 @@ def main() -> None:
     profile_name, resolution_reason = _resolve_profile_name(fm, registry)
     profile = registry.get(profile_name) if profile_name else {}
     dispatch_budget, retry_limit = _execution_defaults(profile or {})
+    runtime_agent_name = _runtime_agent_name(profile or {}, profile_name)
+    fallback_agent_type = _fallback_agent_type(profile or {})
 
     payload = {
         "schema": "theworkshop.agent-resolution.v1",
         "generated_at": now_iso(),
         "project": str(project_root),
+        "registry_dir": str(DEFAULT_REGISTRY_DIR),
+        "runtime_config_path": str((project_root / ".codex" / "config.toml")),
         "work_item_id": str(fm.get("work_item_id") or ""),
         "stakes": str(fm.get("stakes") or ""),
-        "agent_type_hint": str(fm.get("agent_type_hint") or ""),
         "orchestration_mode": str(fm.get("orchestration_mode") or ""),
         "parallel_group": str(fm.get("parallel_group") or ""),
         "resolved_profile": profile_name,
+        "resolved_runtime_agent": runtime_agent_name,
+        "fallback_agent_type": fallback_agent_type,
         "resolution_reason": resolution_reason,
         "dispatch_budget": int(fm.get("dispatch_budget") or dispatch_budget),
         "retry_limit": int(fm.get("retry_limit") or retry_limit),
@@ -152,8 +167,6 @@ def main() -> None:
     if args.write:
         if profile_name:
             fm["agent_profile"] = profile_name
-        if not str(fm.get("agent_type_hint") or "").strip() and profile_name:
-            fm["agent_type_hint"] = str((profile.get("agent_type") or "worker"))
         if fm.get("dispatch_budget") is None:
             fm["dispatch_budget"] = int(dispatch_budget)
         if fm.get("retry_limit") is None:

@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from learning_store import build_learning_capture_prompt
 from tw_tools import run_script
 from twlib import now_iso, normalize_str_list, read_md, resolve_project_root
 from workflow_contract import compose_execution_prompt, load_workflow_contract
@@ -153,6 +154,30 @@ def _record_execution(project_root: Path, wi: str, label: str, command: str, sta
     _append_jsonl(project_root / "logs" / "execution.jsonl", row)
 
 
+def _parse_json_output(raw: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _curate_learning(project_root: Path, wi: str) -> dict[str, Any]:
+    summary = {"memory": {}, "lessons": {}, "errors": []}
+    memory_proc = run_script("memory_curate.py", ["--project", str(project_root), "--work-item-id", wi, "--write"], check=False)
+    if memory_proc.returncode == 0:
+        summary["memory"] = _parse_json_output(memory_proc.stdout)
+    else:
+        summary["errors"].append(f"memory_curate failed exit={memory_proc.returncode}")
+
+    lessons_proc = run_script("lessons_curate.py", ["--project", str(project_root), "--work-item-id", wi, "--write"], check=False)
+    if lessons_proc.returncode == 0:
+        summary["lessons"] = _parse_json_output(lessons_proc.stdout)
+    else:
+        summary["errors"].append(f"lessons_curate failed exit={lessons_proc.returncode}")
+    return summary
+
+
 def _workflow_policy_prompt(project_root: Path) -> str:
     try:
         contract = load_workflow_contract(project_root, missing_ok=True)
@@ -193,12 +218,22 @@ def _run_job(
         return result
 
     # Resolve and persist agent profile before dispatch.
+    resolved_profile_name = "theworkshop_worker"
+    resolved_runtime_agent = "theworkshop_worker"
+    fallback_agent_type = "worker"
     try:
-        run_script(
+        proc = run_script(
             "resolve_agent_profile.py",
             ["--project", str(project_root), "--work-item-id", wi, "--write"],
             check=True,
         )
+        try:
+            resolved_payload = json.loads(proc.stdout or "{}")
+        except Exception:
+            resolved_payload = {}
+        resolved_profile_name = str(resolved_payload.get("resolved_profile") or resolved_profile_name)
+        resolved_runtime_agent = str(resolved_payload.get("resolved_runtime_agent") or resolved_runtime_agent)
+        fallback_agent_type = str(resolved_payload.get("fallback_agent_type") or fallback_agent_type)
     except Exception as exc:
         result["status"] = "failed"
         result["error"] = f"resolve_agent_profile failed: {exc}"
@@ -243,7 +278,9 @@ def _run_job(
             "event": "spawned",
             "status": "active",
             "agent_id": agent_id,
-            "agent_type": "worker",
+            "agent_type": fallback_agent_type,
+            "runtime_agent_name": resolved_runtime_agent,
+            "agent_profile": resolved_profile_name,
             "work_item_id": wi,
             "group_index": group_index,
             "message": "subagent scheduled",
@@ -295,10 +332,18 @@ def _run_job(
         prompt_text = (
             f"Work item: {wi}\n"
             f"Title: {plan_doc.frontmatter.get('title') or ''}\n"
+            f"Resolved runtime agent: {resolved_runtime_agent}\n"
+            f"Fallback agent type: {fallback_agent_type}\n"
             "Execute this job and produce declared outputs/evidence.\n"
             "Follow the job plan and then stop.\n"
         )
     prompt_text = compose_execution_prompt(_workflow_policy_prompt(project_root), prompt_text)
+    prompt_text = prompt_text.rstrip() + "\n\n" + build_learning_capture_prompt(
+        project_root,
+        work_item_id=wi,
+        source_agent=resolved_runtime_agent,
+        agent_id=agent_id,
+    )
 
     job_logs = plan_path.parent / "logs"
     job_logs.mkdir(parents=True, exist_ok=True)
@@ -319,7 +364,9 @@ def _run_job(
                 "event": "completed",
                 "status": "completed",
                 "agent_id": agent_id,
-                "agent_type": "worker",
+                "agent_type": fallback_agent_type,
+                "runtime_agent_name": resolved_runtime_agent,
+                "agent_profile": resolved_profile_name,
                 "work_item_id": wi,
                 "group_index": group_index,
                 "message": "dry-run dispatch completed",
@@ -376,6 +423,7 @@ def _run_job(
     )
 
     if exit_code != 0:
+        learning_summary = _curate_learning(project_root, wi)
         result["status"] = "failed"
         result["error"] = f"codex exec failed exit={exit_code}"
         result["completed_at"] = now_iso()
@@ -387,11 +435,18 @@ def _run_job(
                 "event": "failed",
                 "status": "failed",
                 "agent_id": agent_id,
-                "agent_type": "worker",
+                "agent_type": fallback_agent_type,
+                "runtime_agent_name": resolved_runtime_agent,
+                "agent_profile": resolved_profile_name,
                 "work_item_id": wi,
                 "group_index": group_index,
                 "message": result["error"],
                 "duration_sec": result["duration_sec"],
+                "memory_candidate_count": int((learning_summary.get("memory") or {}).get("candidate_count") or 0),
+                "memory_promoted_count": int((learning_summary.get("memory") or {}).get("promoted_count") or 0),
+                "lesson_candidate_count": int((learning_summary.get("lessons") or {}).get("candidate_count") or 0),
+                "lesson_promoted_count": int((learning_summary.get("lessons") or {}).get("promoted_count") or 0),
+                "learning_errors": list(learning_summary.get("errors") or []),
             },
             dispatch_run_id=dispatch_run_id,
         )
@@ -416,6 +471,7 @@ def _run_job(
                 check=True,
             )
     except Exception as exc:
+        learning_summary = _curate_learning(project_root, wi)
         result["status"] = "failed"
         result["error"] = f"completion gates failed: {exc}"
         result["completed_at"] = now_iso()
@@ -427,16 +483,24 @@ def _run_job(
                 "event": "failed",
                 "status": "failed",
                 "agent_id": agent_id,
-                "agent_type": "worker",
+                "agent_type": fallback_agent_type,
+                "runtime_agent_name": resolved_runtime_agent,
+                "agent_profile": resolved_profile_name,
                 "work_item_id": wi,
                 "group_index": group_index,
                 "message": result["error"],
                 "duration_sec": result["duration_sec"],
+                "memory_candidate_count": int((learning_summary.get("memory") or {}).get("candidate_count") or 0),
+                "memory_promoted_count": int((learning_summary.get("memory") or {}).get("promoted_count") or 0),
+                "lesson_candidate_count": int((learning_summary.get("lessons") or {}).get("candidate_count") or 0),
+                "lesson_promoted_count": int((learning_summary.get("lessons") or {}).get("promoted_count") or 0),
+                "learning_errors": list(learning_summary.get("errors") or []),
             },
             dispatch_run_id=dispatch_run_id,
         )
         return result
 
+    learning_summary = _curate_learning(project_root, wi)
     result["status"] = "completed"
     result["completed_at"] = now_iso()
     result["duration_sec"] = round(time.time() - start_wall, 3)
@@ -447,11 +511,18 @@ def _run_job(
             "event": "completed",
             "status": "completed",
             "agent_id": agent_id,
-            "agent_type": "worker",
+            "agent_type": fallback_agent_type,
+            "runtime_agent_name": resolved_runtime_agent,
+            "agent_profile": resolved_profile_name,
             "work_item_id": wi,
             "group_index": group_index,
             "message": "dispatch execution completed",
             "duration_sec": result["duration_sec"],
+            "memory_candidate_count": int((learning_summary.get("memory") or {}).get("candidate_count") or 0),
+            "memory_promoted_count": int((learning_summary.get("memory") or {}).get("promoted_count") or 0),
+            "lesson_candidate_count": int((learning_summary.get("lessons") or {}).get("candidate_count") or 0),
+            "lesson_promoted_count": int((learning_summary.get("lessons") or {}).get("promoted_count") or 0),
+            "learning_errors": list(learning_summary.get("errors") or []),
         },
         dispatch_run_id=dispatch_run_id,
     )

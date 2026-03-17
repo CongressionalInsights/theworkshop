@@ -96,8 +96,12 @@ def main() -> int:
     sub.add_parser("verify-work", help="Run resumable conversational UAT and persist follow-up actions")
     sub.add_parser("quick", help="Run a short-path ad-hoc task under quick/<id>")
     sub.add_parser("lessons-capture", help="Append a lesson and rebuild index")
+    sub.add_parser("lessons-candidate", help="Capture a staged lesson candidate")
+    sub.add_parser("lessons-curate", help="Curate staged lesson candidates into canonical lesson artifacts")
     sub.add_parser("lessons-query", help="Query lessons")
     sub.add_parser("lessons-apply", help="Apply relevant lessons into a job plan")
+    sub.add_parser("memory-propose", help="Capture a staged durable-memory proposal")
+    sub.add_parser("memory-curate", help="Curate staged durable-memory proposals into memory files")
     sub.add_parser("usage", help="Usage snapshot (tokens/time)")
     sub.add_parser("github-sync", help="GitHub mirroring/sync (opt-in)")
     sub.add_parser("truth-eval", help="Run truth evaluation hooks (placeholder)")
@@ -108,6 +112,7 @@ def main() -> int:
     sub.add_parser("dashboard-serve", help="Serve dashboard with local SSE updates (optional)")
     sub.add_parser("invalidate-downstream", help="Invalidate stale done downstream jobs")
     sub.add_parser("agent-log", help="Append an event to logs/agents.jsonl")
+    sub.add_parser("agent-closeout", help="Close out a manual/external subagent run and promote staged learning once")
     sub.add_parser("serve", help="Run the Symphony-style local project runner")
 
     args, rest = parser.parse_known_args()
@@ -141,8 +146,12 @@ def main() -> int:
         "verify-work": "verify_work.py",
         "quick": "quick.py",
         "lessons-capture": "lessons_capture.py",
+        "lessons-candidate": "lessons_candidate_capture.py",
+        "lessons-curate": "lessons_curate.py",
         "lessons-query": "lessons_query.py",
         "lessons-apply": "lessons_apply.py",
+        "memory-propose": "memory_proposal_capture.py",
+        "memory-curate": "memory_curate.py",
         "usage": "usage_snapshot.py",
         "github-sync": "github_sync.py",
         "truth-eval": "truth_eval.py",
@@ -153,6 +162,7 @@ def main() -> int:
         "dashboard-serve": "dashboard_server.py",
         "invalidate-downstream": "invalidate_downstream.py",
         "agent-log": "agent_log.py",
+        "agent-closeout": "agent_closeout.py",
         "serve": "workflow_runner.py",
     }
     script = mapping[args.cmd]

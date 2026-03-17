@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Subagent Docs + Asset Refresh
+- Added a public self-contained explainer page at `docs/subagents.html` covering:
+  - the broad Codex subagent model,
+  - TheWorkshop planning/runtime/observability layers,
+  - dispatch vs manual vs loop execution paths,
+  - staged lessons / durable memory promotion,
+  - explicit manual closeout through `theworkshop agent-closeout`.
+- Added a reproducible docs asset generation path:
+  - `python3 scripts/generate_docs_assets.py`
+  - `docs/assets/prompts.jsonl`
+  - `docs/assets/README.md`
+- Added reusable generated docs/brand assets:
+  - `docs/assets/theworkshop-mark.png`
+  - `docs/assets/theworkshop-systems-architecture.png`
+  - `docs/assets/subagents-explainer-preview.png`
+- Locked the accepted docs art pass to the OpenAI image path:
+  - `gpt-image-1.5`
+  - keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`
+- Refreshed the systems architecture visual to match the current OSS runtime model:
+  - planning metadata and repo config in the control plane,
+  - native Codex subagents as the runtime,
+  - truthful telemetry, staged learning, and curated closeout as first-class surfaces.
+- Updated `README.md` and `docs/subagents.html` to use the generated PNG asset set.
+
 ### Repo-Only OSS Packaging Pass
 - Reframed the repo as the **public OSS baseline** for TheWorkshop, distinct from any private/custom local operator overlays.
 - Added a profile-aware preflight surface:

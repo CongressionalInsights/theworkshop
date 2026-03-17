@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from learning_store import build_learning_capture_prompt, learning_candidate_counts
 from plan_sync import sync_project_plans
 from twlib import now_iso, normalize_str_list, read_md, resolve_project_root, write_md
 
@@ -381,6 +382,8 @@ def write_attempt_state(
     loop_last_stopped_at: str,
     loop_stop_reason: str,
     result: IterationResult,
+    memory_candidate_count: int = 0,
+    lesson_candidate_count: int = 0,
 ) -> None:
     payload = {
         "schema": "theworkshop.loop-state.v1",
@@ -405,9 +408,48 @@ def write_attempt_state(
             "last_message_path": str(result.last_message_path),
             "stdout_path": str(result.stdout_path),
             "stderr_path": str(result.stderr_path),
+            "memory_candidate_count": int(memory_candidate_count),
+            "lesson_candidate_count": int(lesson_candidate_count),
         },
     }
     write_json(project_root / ".theworkshop" / "loops" / wi / "state.json", payload)
+
+
+def write_attempt_report(
+    project_root: Path,
+    wi: str,
+    *,
+    loop_mode: str,
+    loop_max_iterations: int,
+    completion_promise: str,
+    max_walltime_sec: int,
+    result: IterationResult,
+    memory_candidate_count: int,
+    lesson_candidate_count: int,
+) -> None:
+    write_json(
+        project_root / ".theworkshop" / "loops" / wi / f"attempt-{int(result.attempt):03d}.json",
+        {
+            "schema": "theworkshop.loop-attempt.v1",
+            "project": str(project_root),
+            "work_item_id": wi,
+            "attempt": int(result.attempt),
+            "loop_mode": loop_mode,
+            "loop_max_iterations": int(loop_max_iterations),
+            "loop_target_promise": completion_promise,
+            "max_walltime_sec": int(max_walltime_sec),
+            "started_at": result.started_at,
+            "stopped_at": result.stopped_at,
+            "duration_sec": float(result.duration_sec),
+            "exit_code": int(result.exit_code),
+            "last_promise": result.last_promise,
+            "last_message_path": str(result.last_message_path),
+            "stdout_path": str(result.stdout_path),
+            "stderr_path": str(result.stderr_path),
+            "memory_candidate_count": int(memory_candidate_count),
+            "lesson_candidate_count": int(lesson_candidate_count),
+        },
+    )
 
 
 def write_summary(
@@ -425,6 +467,11 @@ def write_summary(
     max_walltime_sec: int,
     start_type: str,
     elapsed_sec: int,
+    total_memory_candidates: int = 0,
+    total_lesson_candidates: int = 0,
+    promoted_memory_count: int = 0,
+    promoted_lesson_count: int = 0,
+    learning_errors: list[str] | None = None,
 ) -> None:
     write_json(
         project_root / ".theworkshop" / "loops" / wi / "summary.json",
@@ -443,8 +490,49 @@ def write_summary(
             "loop_stop_reason": loop_stop_reason,
             "duration_sec": int(elapsed_sec),
             "start_type": start_type,
+            "memory_candidate_count": int(total_memory_candidates),
+            "lesson_candidate_count": int(total_lesson_candidates),
+            "promoted_memory_count": int(promoted_memory_count),
+            "promoted_lesson_count": int(promoted_lesson_count),
+            "learning_errors": list(learning_errors or []),
         },
     )
+
+
+def _parse_json_output(raw: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(raw or "{}")
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def curate_learning(project_root: Path, wi: str) -> dict[str, Any]:
+    summaries = {
+        "memory": {},
+        "lessons": {},
+        "errors": [],
+    }
+    memory_proc = run_py(
+        "memory_curate.py",
+        ["--project", str(project_root), "--work-item-id", wi, "--write"],
+        check=False,
+    )
+    if memory_proc.returncode == 0:
+        summaries["memory"] = _parse_json_output(memory_proc.stdout)
+    else:
+        summaries["errors"].append(f"memory_curate failed exit={memory_proc.returncode}")
+
+    lesson_proc = run_py(
+        "lessons_curate.py",
+        ["--project", str(project_root), "--work-item-id", wi, "--write"],
+        check=False,
+    )
+    if lesson_proc.returncode == 0:
+        summaries["lessons"] = _parse_json_output(lesson_proc.stdout)
+    else:
+        summaries["errors"].append(f"lessons_curate failed exit={lesson_proc.returncode}")
+    return summaries
 
 
 def update_job_loop_fields(
@@ -663,6 +751,9 @@ def main() -> None:
     loop_state_path = project_root / ".theworkshop" / "loops" / wi / "state.json"
     loop_state = read_json(loop_state_path)
     loop_start_ts = now_iso()
+    loop_agent_id = f"loop-{wi}"
+    total_memory_candidates = 0
+    total_lesson_candidates = 0
 
     ts = now_iso()
     update_job_loop_fields(
@@ -691,7 +782,12 @@ def main() -> None:
 
     if not args.no_preflight:
         run_preflight(
-            prompt=prompt,
+            prompt=prompt.rstrip() + "\n\n" + build_learning_capture_prompt(
+                project_root,
+                work_item_id=wi,
+                source_agent="theworkshop_loop_worker",
+                agent_id=loop_agent_id,
+            ),
             completion_promise=completion_promise,
             project_root=project_root,
             codex_args=args.codex_arg,
@@ -764,17 +860,32 @@ def main() -> None:
             loop_target_promise=completion_promise,
         )
 
+        attempt_prompt = prompt.rstrip() + "\n\n" + build_learning_capture_prompt(
+            project_root,
+            work_item_id=wi,
+            source_agent="theworkshop_loop_worker",
+            agent_id=loop_agent_id,
+            loop_attempt=attempt,
+        )
+
         result = run_one_execution(
             project_root=project_root,
             wi=wi,
             attempt=attempt,
-            prompt=prompt,
+            prompt=attempt_prompt,
             codex_args=args.codex_arg,
         )
+        attempt_learning = learning_candidate_counts(project_root, work_item_id=wi, loop_attempt=attempt)
+        total_memory_candidates += int(attempt_learning.get("memory_candidate_count") or 0)
+        total_lesson_candidates += int(attempt_learning.get("lesson_candidate_count") or 0)
 
         update_job_loop_fields(
             job_plan,
-            progress=f"{result.stopped_at} loop attempt {attempt} codex exit={result.exit_code}; output={result.stdout_path}; errors={result.stderr_path}",
+            progress=(
+                f"{result.stopped_at} loop attempt {attempt} codex exit={result.exit_code}; output={result.stdout_path}; "
+                f"errors={result.stderr_path}; memory_candidates={attempt_learning.get('memory_candidate_count') or 0}; "
+                f"lesson_candidates={attempt_learning.get('lesson_candidate_count') or 0}"
+            ),
             loop_status="active",
             loop_last_attempt=attempt,
             loop_last_started_at=result.started_at,
@@ -798,6 +909,19 @@ def main() -> None:
             loop_last_stopped_at=result.stopped_at,
             loop_stop_reason="",
             result=result,
+            memory_candidate_count=int(attempt_learning.get("memory_candidate_count") or 0),
+            lesson_candidate_count=int(attempt_learning.get("lesson_candidate_count") or 0),
+        )
+        write_attempt_report(
+            project_root=project_root,
+            wi=wi,
+            loop_mode=loop_mode,
+            loop_max_iterations=int(max_loops),
+            completion_promise=completion_promise,
+            max_walltime_sec=int(args.max_walltime_sec or 0),
+            result=result,
+            memory_candidate_count=int(attempt_learning.get("memory_candidate_count") or 0),
+            lesson_candidate_count=int(attempt_learning.get("lesson_candidate_count") or 0),
         )
 
         last_attempt = attempt
@@ -883,6 +1007,10 @@ def main() -> None:
     elapsed = int(round(time.time() - start_wall))
     final_stopped = last_stopped_at or now_iso()
     final_reason = stop_reason or ("completed" if loop_done else "error")
+    learning_summary = curate_learning(project_root, wi)
+    memory_promoted = int((learning_summary.get("memory") or {}).get("promoted_count") or 0)
+    lesson_promoted = int((learning_summary.get("lessons") or {}).get("promoted_count") or 0)
+    learning_errors = [str(item).strip() for item in (learning_summary.get("errors") or []) if str(item).strip()]
 
     write_attempt_state(
         project_root=project_root,
@@ -908,6 +1036,8 @@ def main() -> None:
             stdout_path=project_root / "logs" / "loops" / wi / f"attempt-{last_attempt}.stdout.txt",
             stderr_path=project_root / "logs" / "loops" / wi / f"attempt-{last_attempt}.stderr.txt",
         ),
+        memory_candidate_count=total_memory_candidates,
+        lesson_candidate_count=total_lesson_candidates,
     )
     write_summary(
         project_root=project_root,
@@ -923,6 +1053,11 @@ def main() -> None:
         max_walltime_sec=int(args.max_walltime_sec or 0),
         start_type="resume" if args.resume else "fresh",
         elapsed_sec=elapsed,
+        total_memory_candidates=total_memory_candidates,
+        total_lesson_candidates=total_lesson_candidates,
+        promoted_memory_count=memory_promoted,
+        promoted_lesson_count=lesson_promoted,
+        learning_errors=learning_errors,
     )
 
     update_job_loop_fields(
@@ -933,7 +1068,7 @@ def main() -> None:
         loop_stop_reason=final_reason,
         progress=(
             f"{final_stopped} loop finished: wi={wi}; mode={loop_mode}; attempts={last_attempt}; "
-            f"status={loop_status}; reason={final_reason}"
+            f"status={loop_status}; reason={final_reason}; memory_promoted={memory_promoted}; lessons_promoted={lesson_promoted}"
         ),
         loop_mode=loop_mode,
         loop_max_iterations=int(max_loops),
@@ -943,7 +1078,8 @@ def main() -> None:
         project_root,
         (
             f"{final_stopped} loop decision: WI={wi} status={loop_status}; reason={final_reason}; "
-            f"attempts={last_attempt}; mode={loop_mode}; max_loops={int(max_loops)}"
+            f"attempts={last_attempt}; mode={loop_mode}; max_loops={int(max_loops)}; "
+            f"memory_promoted={memory_promoted}; lessons_promoted={lesson_promoted}"
         ),
     )
 

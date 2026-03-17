@@ -43,13 +43,13 @@ def set_frontmatter(path: Path, **updates) -> None:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="theworkshop-agent-profile-") as td:
+    with tempfile.TemporaryDirectory(prefix="theworkshop-normalize-agent-profiles-") as td:
         base = Path(td).resolve()
         project_root = Path(
-            run(py("project_new.py") + ["--name", "Agent Profile Test", "--base-dir", str(base)]).stdout.strip()
+            run(py("project_new.py") + ["--name", "Normalize Agent Profiles Test", "--base-dir", str(base)]).stdout.strip()
         ).resolve()
         ws_id = run(py("workstream_add.py") + ["--project", str(project_root), "--title", "Role WS"]).stdout.strip()
-        wi = run(
+        run(
             py("job_add.py")
             + [
                 "--project",
@@ -61,45 +61,26 @@ def main() -> None:
                 "--stakes",
                 "critical",
             ]
-        ).stdout.strip()
+        )
 
         job_plan = next(project_root.glob("workstreams/WS-*/jobs/WI-*/plan.md"))
-        initial_doc = split_frontmatter(job_plan.read_text(encoding="utf-8", errors="ignore"))
-        if str(initial_doc.frontmatter.get("agent_profile") or "") != "theworkshop_worker":
-            raise RuntimeError("Expected new jobs to default to canonical theworkshop_worker agent_profile")
+        set_frontmatter(job_plan, agent_profile="reviewer", agent_type_hint="worker")
 
-        set_frontmatter(job_plan, agent_profile="", orchestration_mode="review")
+        dry_run = json.loads(run(py("normalize_agent_profiles.py") + ["--project", str(project_root)]).stdout)
+        if len(dry_run.get("changes") or []) != 1:
+            raise RuntimeError(f"Expected exactly one dry-run change, got: {dry_run}")
+        change = dry_run["changes"][0]
+        if change.get("after_agent_profile") != "theworkshop_reviewer":
+            raise RuntimeError(f"Expected canonical reviewer profile in dry-run, got: {dry_run}")
 
-        proc = run(
-            py("resolve_agent_profile.py")
-            + [
-                "--project",
-                str(project_root),
-                "--work-item-id",
-                wi,
-                "--write",
-            ]
-        )
-        payload = json.loads(proc.stdout)
-
-        if payload.get("resolved_profile") != "theworkshop_reviewer":
-            raise RuntimeError(f"Expected canonical reviewer profile, got: {payload}")
-        if payload.get("resolved_runtime_agent") != "theworkshop_reviewer":
-            raise RuntimeError(f"Expected canonical runtime agent, got: {payload}")
-        if payload.get("fallback_agent_type") != "default":
-            raise RuntimeError(f"Expected default fallback agent type, got: {payload}")
-
+        run(py("normalize_agent_profiles.py") + ["--project", str(project_root), "--write"])
         doc = split_frontmatter(job_plan.read_text(encoding="utf-8", errors="ignore"))
         if str(doc.frontmatter.get("agent_profile") or "") != "theworkshop_reviewer":
-            raise RuntimeError("Expected agent_profile to be written to job frontmatter")
+            raise RuntimeError("Expected canonical agent_profile after normalization")
         if "agent_type_hint" in doc.frontmatter:
-            raise RuntimeError("Expected no legacy agent_type_hint in new canonical plans")
+            raise RuntimeError("Expected agent_type_hint to be removed by normalization")
 
-        out_path = job_plan.parent / "artifacts" / "agent-profile.json"
-        if not out_path.exists():
-            raise RuntimeError(f"Expected artifact not found: {out_path}")
-
-        print("RESOLVE AGENT PROFILE TEST PASSED")
+        print("NORMALIZE AGENT PROFILES TEST PASSED")
 
 
 if __name__ == "__main__":

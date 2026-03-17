@@ -73,11 +73,13 @@ Job-level truth/orchestration:
 - `truth_last_failures`
 - `truth_input_snapshot`
 - `orchestration_mode`
-- `agent_type_hint`
 - `agent_profile`
 - `parallel_group`
 - `dispatch_budget`
 - `retry_limit`
+
+Historical plan data that should be normalized away:
+- `agent_type_hint`
 
 Job-level context/UAT payload:
 - `context_required`

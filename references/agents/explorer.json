@@ -1,6 +1,9 @@
 {
   "schema": "theworkshop.agentprofile.v1",
-  "name": "explorer",
+  "name": "theworkshop_explorer",
+  "legacy_aliases": ["explorer"],
+  "runtime_agent_name": "theworkshop_explorer",
+  "builtin_fallback_agent_type": "explorer",
   "agent_type": "explorer",
   "description": "Read-only investigation and context-gathering profile for decomposition and dependency checks.",
   "default_for": {

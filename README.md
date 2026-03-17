@@ -21,9 +21,30 @@ When this repo says **\"project OS\"**, it means:
 
 ## Systems Architecture
 
-The diagram below shows TheWorkshop's control plane (planning, gating, orchestration) and execution plane (work execution, outputs, monitoring).
+The diagram below reflects the current OSS baseline:
+
+- planning metadata and agreement live in the control plane
+- native Codex subagents are the execution runtime
+- telemetry, staged learning, and explicit closeout keep delegation truthful
 
 ![TheWorkshop Systems Architecture](docs/assets/theworkshop-systems-architecture.png)
+
+## Interactive Subagent Explainer
+
+The repo now ships with a self-contained explainer page at:
+
+- [`docs/subagents.html`](docs/subagents.html)
+
+It is designed to open locally after install and covers:
+
+- the broad Codex subagent model
+- when delegation is worth the coordination cost
+- built-in roles versus repo-scoped TheWorkshop roles
+- dispatch, manual, and loop execution paths
+- staged lessons and durable memory promotion
+- explicit manual closeout through `theworkshop agent-closeout`
+
+![Subagent Explainer Artwork](docs/assets/subagents-explainer-preview.png)
 
 ## What It Is
 
@@ -31,7 +52,7 @@ The diagram below shows TheWorkshop's control plane (planning, gating, orchestra
 - A structured runtime for mixed coding and non-coding projects
 - Agreement-gated before execution starts
 - Truth-gated and reward-gated before completion claims
-- Parallel-orchestration aware (sub-agents when independent jobs exist)
+- Parallel-orchestration aware (native Codex subagents for independent bounded jobs)
 - Dashboard-first monitoring with token/spend telemetry
 - A repo-owned `WORKFLOW.md` contract for unattended local execution
 
@@ -164,6 +185,22 @@ Every project now gets a `WORKFLOW.md` file at the project root. It is the repo-
 contract for unattended runs: polling cadence, dispatch defaults, pre/post cycle hooks, and the
 shared execution-policy prompt prepended to delegated work-item prompts.
 
+When parallel work is justified, TheWorkshop treats native Codex subagents as the default
+delegation runtime. TheWorkshop orchestration decides which jobs are safe to delegate; the parent
+thread stays responsible for planning, integration, and final synthesis.
+
+TheWorkshop also treats learning capture as a first-class runtime concern:
+
+- shared cross-repo agents can live in `~/.codex/agents/`
+- repo-specific workshop agents live in `.codex/agents/`
+- delegated and looped work may read durable memory, but should stage new durable findings in:
+  - `.theworkshop/memory-proposals/*.json`
+  - `.theworkshop/lessons-candidates/*.json`
+- only curator agents or the parent thread should promote those staged findings into:
+  - `$CODEX_HOME/memories/projects/*.md`
+  - `notes/lessons-learned.md`
+- manual/external delegated runs should use `theworkshop agent-log` for intermediate telemetry and `theworkshop agent-closeout` once for terminal closeout plus staged learning promotion
+
 Expected core outputs:
 
 - `outputs/dashboard.html`
@@ -276,6 +313,7 @@ theworkshop/
   scripts/
   references/
   examples/
+  docs/subagents.html
   docs/assets/
   .github/
 ```

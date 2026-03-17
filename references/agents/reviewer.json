@@ -1,6 +1,9 @@
 {
   "schema": "theworkshop.agentprofile.v1",
-  "name": "reviewer",
+  "name": "theworkshop_reviewer",
+  "legacy_aliases": ["reviewer", "review", "qa", "verify", "closeout"],
+  "runtime_agent_name": "theworkshop_reviewer",
+  "builtin_fallback_agent_type": "default",
   "agent_type": "default",
   "description": "Verification and synthesis profile for QA-heavy or high-risk closeout tasks.",
   "default_for": {
