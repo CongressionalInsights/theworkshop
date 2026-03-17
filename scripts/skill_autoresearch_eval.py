@@ -283,7 +283,7 @@ def markdown_report(payload: dict[str, Any]) -> str:
         for path in dirty:
             lines.append(f"- `{path}`")
         lines.append("")
-        lines.extend(
+    lines.extend(
         [
             "## Benchmarks",
             "",
