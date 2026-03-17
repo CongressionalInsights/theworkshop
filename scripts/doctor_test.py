@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Allow importing TheWorkshop helpers from the scripts directory.
+
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -55,7 +55,6 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="theworkshop-doctor-test-") as tmp_dir:
         code_home = Path(tmp_dir).resolve()
 
-        # imagegen skill path must exist for DOCTOR preflight checks.
         (code_home / "skills" / "imagegen" / "scripts").mkdir(parents=True, exist_ok=True)
         (code_home / "skills" / "imagegen" / "scripts" / "image_gen.py").write_text(
             "#! /usr/bin/env python3\nprint('ok')\n",
@@ -65,40 +64,62 @@ def main() -> None:
         session_id = "WI-DOCTOR-TEST-001"
         write_fake_session_log(code_home, session_id)
 
-        env_ok = {
+        env_codex_ok = {
             "CODEX_HOME": str(code_home),
             "THEWORKSHOP_IMAGEGEN_API_KEY": "unit-test-key",
             "CODEX_THREAD_ID": session_id,
         }
-        proc_ok = run(py("doctor.py"), env=env_ok)
-        if proc_ok.returncode != 0:
-            raise RuntimeError(
-                "doctor.py should pass with canonical env image credential + session log\n"
-                f"stdout:\n{proc_ok.stdout}\n"
-                f"stderr:\n{proc_ok.stderr}"
-            )
-        if "DOCTOR: OK" not in proc_ok.stdout:
-            raise RuntimeError(f"Expected DOCTOR: OK, got:\n{proc_ok.stdout}")
-        if "image credentials:" not in proc_ok.stdout or "env:THEWORKSHOP_IMAGEGEN_API_KEY" not in proc_ok.stdout:
-            raise RuntimeError(f"Expected env credential status, got:\n{proc_ok.stdout}")
+        proc_ok = run(py("doctor.py") + ["--profile", "codex"], env=env_codex_ok)
+        if proc_ok.returncode != 0 or "DOCTOR: OK" not in proc_ok.stdout:
+            raise RuntimeError(f"Expected codex profile to pass, got:\n{proc_ok.stdout}\n{proc_ok.stderr}")
+        if "[OK] profile: codex" not in proc_ok.stdout:
+            raise RuntimeError(f"Expected codex profile marker, got:\n{proc_ok.stdout}")
 
-        env_missing = {
+        env_portable = {
+            "CODEX_HOME": str(code_home / "portable-home"),
+            "THEWORKSHOP_IMAGEGEN_API_KEY": "",
+            "THEWORKSHOP_NO_KEYCHAIN": "1",
+            "CODEX_THREAD_ID": "",
+        }
+        proc_portable = run(py("doctor.py") + ["--profile", "portable"], env=env_portable)
+        if proc_portable.returncode != 0 or "DOCTOR: OK" not in proc_portable.stdout:
+            raise RuntimeError(f"Expected portable profile to pass, got:\n{proc_portable.stdout}\n{proc_portable.stderr}")
+        if "warning: Codex telemetry adapter unavailable" not in proc_portable.stdout:
+            raise RuntimeError(f"Expected portable warning about optional Codex telemetry, got:\n{proc_portable.stdout}")
+
+        env_codex_missing = {
             "CODEX_HOME": str(code_home),
             "THEWORKSHOP_IMAGEGEN_API_KEY": "",
             "THEWORKSHOP_NO_KEYCHAIN": "1",
-            "CODEX_THREAD_ID": session_id,
+            "CODEX_THREAD_ID": "",
         }
-        proc_fail = run(py("doctor.py"), env=env_missing, check=False)
-        if proc_fail.returncode == 0:
+        proc_codex_fail = run(py("doctor.py") + ["--profile", "codex"], env=env_codex_missing, check=False)
+        if proc_codex_fail.returncode == 0:
             raise RuntimeError(
-                "doctor.py should fail when no env credential is available and keychain is disabled\n"
-                f"stdout:\n{proc_fail.stdout}\n"
-                f"stderr:\n{proc_fail.stderr}"
+                "Expected codex profile to fail without session telemetry\n"
+                f"stdout:\n{proc_codex_fail.stdout}\n"
+                f"stderr:\n{proc_codex_fail.stderr}\n"
             )
-        if "Set THEWORKSHOP_IMAGEGEN_API_KEY" not in (proc_fail.stdout + proc_fail.stderr):
-            raise RuntimeError(f"Expected credential guidance, got:\n{proc_fail.stdout}\n{proc_fail.stderr}")
-        if "DOCTOR: FAIL" not in (proc_fail.stdout + proc_fail.stderr):
-            raise RuntimeError(f"Expected DOCTOR: FAIL, got:\n{proc_fail.stdout}\n{proc_fail.stderr}")
+        if "DOCTOR: FAIL" not in (proc_codex_fail.stdout + proc_codex_fail.stderr):
+            raise RuntimeError(f"Expected DOCTOR: FAIL, got:\n{proc_codex_fail.stdout}\n{proc_codex_fail.stderr}")
+        if "Codex profile requires CODEX_THREAD_ID/SESSION_ID" not in (proc_codex_fail.stdout + proc_codex_fail.stderr):
+            raise RuntimeError(f"Expected codex telemetry guidance, got:\n{proc_codex_fail.stdout}\n{proc_codex_fail.stderr}")
+
+        env_imagegen_selected = {
+            "CODEX_HOME": str(code_home / "portable-home"),
+            "THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE": "env",
+            "THEWORKSHOP_IMAGEGEN_API_KEY": "",
+            "THEWORKSHOP_NO_KEYCHAIN": "1",
+        }
+        proc_imagegen_fail = run(py("doctor.py") + ["--profile", "portable"], env=env_imagegen_selected, check=False)
+        if proc_imagegen_fail.returncode == 0:
+            raise RuntimeError(
+                "Expected portable profile to fail when imagegen env adapter is explicitly selected without credentials\n"
+                f"stdout:\n{proc_imagegen_fail.stdout}\n"
+                f"stderr:\n{proc_imagegen_fail.stderr}\n"
+            )
+        if "Set THEWORKSHOP_IMAGEGEN_API_KEY" not in (proc_imagegen_fail.stdout + proc_imagegen_fail.stderr):
+            raise RuntimeError(f"Expected imagegen credential guidance, got:\n{proc_imagegen_fail.stdout}\n{proc_imagegen_fail.stderr}")
 
         print("DOCTOR TESTS PASSED")
 

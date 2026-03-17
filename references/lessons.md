@@ -13,8 +13,15 @@ Optional global library (opt-in):
 
 Scripts:
 - capture: `scripts/lessons_capture.py`
+- staged candidate capture: `scripts/lessons_candidate_capture.py`
+- staged candidate curate/promote: `scripts/lessons_curate.py`
 - query: `scripts/lessons_query.py`
 - apply: `scripts/lessons_apply.py`
+
+Staged subagent inputs:
+- `.theworkshop/lessons-candidates/*.json`
+
+Each staged lesson candidate may carry `agent_id` when it belongs to a specific delegated run. Manual/external closeout should promote candidates through `theworkshop agent-closeout`, which filters staged records to that run before writing canonical lesson artifacts.
 
 ## Capture Contract
 
@@ -29,6 +36,13 @@ Each captured lesson should include:
 Minimum quality bar:
 - capture reusable operating guidance (patterns, pitfalls, verification tactics)
 - avoid one-off noise (temporary typo fixes, trivial retries, obvious mechanical errors)
+
+Subagent and loop policy:
+- subagents may stage lesson candidates directly
+- subagents should not edit canonical lesson artifacts directly
+- `lessons_curate.py` aggregates/dedupes staged candidates before promotion
+- loop runs should accumulate candidates during attempts and only promote after terminal loop state
+- manual/external delegated runs should use `theworkshop agent-log` for non-terminal telemetry and `theworkshop agent-closeout` once for terminal promotion
 
 ## Retrieval Timing and Placement
 

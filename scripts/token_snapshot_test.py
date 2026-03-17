@@ -26,7 +26,7 @@ def main() -> None:
         {
             "timestamp": "2026-02-16T10:00:00.000Z",
             "type": "turn_context",
-            "payload": {"model": "gpt-5.3-codex"},
+            "payload": {"model": "gpt-5.4"},
         },
         {"timestamp": "2026-02-16T10:00:00.000Z", "type": "event_msg", "payload": {"type": "other"}},
         {"timestamp": "2026-02-16T10:00:01.000Z", "type": "event_msg", "payload": {"type": "token_count", "info": None}},
@@ -53,8 +53,8 @@ def main() -> None:
                     "model_context_window": 258400,
                 },
                 "rate_limits": {
-                    "limit_id": "codex_bengalfox",
-                    "limit_name": "GPT-5.3-Codex-Spark",
+                    "limit_id": "codex",
+                    "limit_name": "GPT-5.4",
                     "plan_type": "pro",
                     "credits": {
                         "has_credits": False,
@@ -101,12 +101,12 @@ def main() -> None:
         raise RuntimeError(f"Expected lastTokenUsage.total_tokens=240, got {snap.get('lastTokenUsage')!r}")
     if int(snap.get("modelContextWindow") or 0) != 258400:
         raise RuntimeError(f"Expected modelContextWindow=258400, got {snap.get('modelContextWindow')!r}")
-    if str(snap.get("detectedModel") or "") != "gpt-5.3-codex":
-        raise RuntimeError(f"Expected detectedModel=gpt-5.3-codex, got {snap.get('detectedModel')!r}")
-    if str(snap.get("rateLimitId") or "") != "codex_bengalfox":
-        raise RuntimeError(f"Expected rateLimitId=codex_bengalfox, got {snap.get('rateLimitId')!r}")
-    if str(snap.get("rateLimitName") or "") != "GPT-5.3-Codex-Spark":
-        raise RuntimeError(f"Expected rateLimitName=GPT-5.3-Codex-Spark, got {snap.get('rateLimitName')!r}")
+    if str(snap.get("detectedModel") or "") != "gpt-5.4":
+        raise RuntimeError(f"Expected detectedModel=gpt-5.4, got {snap.get('detectedModel')!r}")
+    if str(snap.get("rateLimitId") or "") != "codex":
+        raise RuntimeError(f"Expected rateLimitId=codex, got {snap.get('rateLimitId')!r}")
+    if str(snap.get("rateLimitName") or "") != "GPT-5.4":
+        raise RuntimeError(f"Expected rateLimitName=GPT-5.4, got {snap.get('rateLimitName')!r}")
     if str(snap.get("ratePlanType") or "") != "pro":
         raise RuntimeError(f"Expected ratePlanType=pro, got {snap.get('ratePlanType')!r}")
     if snap.get("rateCreditsHasCredits") is not False:
@@ -116,8 +116,8 @@ def main() -> None:
     raw_limits = snap.get("rateLimitsRaw")
     if not isinstance(raw_limits, dict):
         raise RuntimeError(f"Expected rateLimitsRaw dict, got {type(raw_limits).__name__}")
-    if str(raw_limits.get("limit_id") or "") != "codex_bengalfox":
-        raise RuntimeError(f"Expected rateLimitsRaw.limit_id=codex_bengalfox, got {raw_limits.get('limit_id')!r}")
+    if str(raw_limits.get("limit_id") or "") != "codex":
+        raise RuntimeError(f"Expected rateLimitsRaw.limit_id=codex, got {raw_limits.get('limit_id')!r}")
     if str(snap.get("tokenTimestamp") or "") != "2026-02-16T10:00:02.000Z":
         raise RuntimeError(f"Expected tokenTimestamp from latest token_count event, got {snap.get('tokenTimestamp')!r}")
 

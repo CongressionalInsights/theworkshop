@@ -214,7 +214,7 @@ def build_job_plan(
         "uat_follow_up_actions": [],
         "truth_input_snapshot": "artifacts/input-snapshot.json",
         "orchestration_mode": "auto",
-        "agent_type_hint": "worker",
+        "agent_profile": "theworkshop_worker",
         "parallel_group": "",
     }
 

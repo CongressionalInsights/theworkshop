@@ -80,8 +80,37 @@ If you need complex content, put it in the Markdown body, not frontmatter.
 - `github_issue_number` / `github_issue_url` (strings)
 - `truth_mode` / `truth_checks` / `truth_required_commands`
 - `truth_last_status` / `truth_last_checked_at` / `truth_last_failures` / `truth_input_snapshot`
-- `orchestration_mode` / `agent_type_hint` / `agent_profile` / `parallel_group`
+- `orchestration_mode` / `agent_profile` / `parallel_group`
 - `dispatch_budget` / `retry_limit`
+
+Historical compatibility only:
+- `agent_type_hint` may exist on older plans and should be removed by `normalize_agent_profiles.py`
+
+## Staged learning record fields
+
+Staged delegated-learning artifacts in `.theworkshop/memory-proposals/*.json` and `.theworkshop/lessons-candidates/*.json` share these identifying fields:
+- `id`
+- `work_item_id`
+- `source_agent`
+- `status` (`proposed|promoted|skipped`)
+- `captured_at`
+- optional `agent_id` for run-scoped manual/external or delegated closeout
+
+Memory proposal records additionally include:
+- `scope` (`project|global`)
+- `kind` (`workflow|decision|pitfall|follow_up`)
+- `statement`
+- `evidence`
+- `confidence`
+- `promote_reason`
+
+Lesson candidate records additionally include:
+- `context`
+- `worked`
+- `failed`
+- `recommendation`
+- `tags`
+- `linked`
 
 ## `theworkshop.githubmap.v1`
 
@@ -211,6 +240,7 @@ Compatibility notes:
 Stored in `outputs/orchestration-execution.json`.
 - `groups[*].results[*]` captures delegated execution outcomes.
 - Primary runtime event stream is `logs/agents.jsonl` (canonical for manual + dispatch delegation).
+- Manual/external terminal closeout should be written through `theworkshop agent-closeout`; raw `theworkshop agent-log` events are telemetry-only and do not trigger learning promotion.
 - `logs/subagent-dispatch.jsonl` is compatibility/diagnostic dispatch telemetry.
 
 ## JSON schema files (runtime validation)

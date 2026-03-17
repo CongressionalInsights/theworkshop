@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from runtime_profile import command_available, skill_script_path
 from twlib import now_iso, read_md, resolve_project_root
 
 
@@ -186,16 +187,20 @@ def _judge_prompt(brief: dict[str, Any], anonymized_plans: list[dict[str, Any]])
 
 
 def _run_gemini(model: str, prompt: str) -> tuple[int, str, str]:
+    if not command_available("gemini"):
+        return 2, "", "optional planner adapter unavailable: Gemini CLI not installed or not on PATH"
     cmd = ["gemini", "--output-format", "json", "--model", model, prompt]
-    proc = subprocess.run(cmd, text=True, capture_output=True)
+    try:
+        proc = subprocess.run(cmd, text=True, capture_output=True)
+    except FileNotFoundError:
+        return 2, "", "optional planner adapter unavailable: Gemini CLI not installed or not on PATH"
     return int(proc.returncode), proc.stdout or "", proc.stderr or ""
 
 
 def _run_openai_with_keychain(model: str, prompt: str, approve: str) -> tuple[int, str, str]:
-    codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
-    keychain = codex_home / "skills" / "apple-keychain" / "scripts" / "keychain_run.sh"
+    keychain = skill_script_path("apple-keychain", "scripts/keychain_run.sh")
     if not keychain.exists():
-        return 2, "", f"apple-keychain script missing: {keychain}"
+        return 2, "", f"optional planner adapter unavailable: apple-keychain script missing: {keychain}"
 
     with tempfile.TemporaryDirectory(prefix="theworkshop-council-openai-") as td:
         tmp = Path(td)
@@ -283,7 +288,7 @@ def _run_planner(spec: PlannerSpec, prompt: str, retries: int, approve: str) -> 
     return {
         "ok": False,
         "attempts": retries + 1,
-        "error": "planner output invalid or command failed",
+        "error": (last_stderr or last_stdout or "planner output invalid or command failed").strip(),
         "stdout": last_stdout,
         "stderr": last_stderr,
         "payload": {},
@@ -386,7 +391,10 @@ def main() -> None:
     ok_plans = [item for item in planner_results if item.get("ok") and isinstance(item.get("payload"), dict)]
     if not ok_plans:
         _event(project_root, "council_failed", "failed", "all planners failed")
-        raise SystemExit("No valid planner outputs produced.")
+        planner_errors = [str(item.get("error") or "").strip() for item in planner_results]
+        planner_errors = [item for item in planner_errors if item]
+        detail = planner_errors[0] if planner_errors else "No valid planner outputs produced."
+        raise SystemExit(detail)
 
     anonymized: list[dict[str, Any]] = []
     for idx, item in enumerate(ok_plans, start=1):

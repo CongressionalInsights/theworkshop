@@ -1,6 +1,9 @@
 {
   "schema": "theworkshop.agentprofile.v1",
-  "name": "worker",
+  "name": "theworkshop_worker",
+  "legacy_aliases": ["worker", "default", "implementer", "builder"],
+  "runtime_agent_name": "theworkshop_worker",
+  "builtin_fallback_agent_type": "worker",
   "agent_type": "worker",
   "description": "Primary implementation profile for execution jobs with explicit output contracts.",
   "default_for": {

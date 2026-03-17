@@ -3,7 +3,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/CongressionalInsights/theworkshop?display_name=tag)](https://github.com/CongressionalInsights/theworkshop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-**TheWorkshop Open Source Edition** is a **skill for Codex and Claude Code** that runs non-coding work in a structured, auditable way.
+**TheWorkshop Open Source Edition** is a **skill for Codex and Claude Code** that runs mixed coding and non-coding work in a structured, auditable way.
 
 It turns ambiguous requests into a living execution workflow:
 
@@ -21,24 +21,83 @@ When this repo says **\"project OS\"**, it means:
 
 ## Systems Architecture
 
-The diagram below shows TheWorkshop's control plane (planning, gating, orchestration) and execution plane (work execution, outputs, monitoring).
+The diagram below reflects the current OSS baseline:
+
+- planning metadata and agreement live in the control plane
+- native Codex subagents are the execution runtime
+- telemetry, staged learning, and explicit closeout keep delegation truthful
 
 ![TheWorkshop Systems Architecture](docs/assets/theworkshop-systems-architecture.png)
+
+## Interactive Subagent Explainer
+
+The repo now ships with a self-contained explainer page at:
+
+- [`docs/subagents.html`](docs/subagents.html)
+
+It is designed to open locally after install and covers:
+
+- the broad Codex subagent model
+- when delegation is worth the coordination cost
+- built-in roles versus repo-scoped TheWorkshop roles
+- dispatch, manual, and loop execution paths
+- staged lessons and durable memory promotion
+- explicit manual closeout through `theworkshop agent-closeout`
+
+![Subagent Explainer Artwork](docs/assets/subagents-explainer-preview.png)
 
 ## What It Is
 
 - A **Codex/Claude Code skill**, not a standalone app
-- A structured runtime for non-coding projects
+- A structured runtime for mixed coding and non-coding projects
 - Agreement-gated before execution starts
 - Truth-gated and reward-gated before completion claims
-- Parallel-orchestration aware (sub-agents when independent jobs exist)
+- Parallel-orchestration aware (native Codex subagents for independent bounded jobs)
 - Dashboard-first monitoring with token/spend telemetry
+- A repo-owned `WORKFLOW.md` contract for unattended local execution
 
 ## What It Is Not
 
 - A replacement for human strategic ownership
 - A generic code framework or web app product
 - A system that marks work complete on artifact presence alone
+
+## Public Baseline Vs. Local Custom
+
+This repository is the **public OSS baseline** for TheWorkshop.
+
+- It defines the portable local framework and the optional adapters that ship in the public repo.
+- It does **not** claim to contain or standardize private/custom operator workflows.
+- Richer local/custom versions can exist separately, but they are outside the contract of this repository.
+
+## Portable Local Framework Profile
+
+The repo remains **Codex-first** in top-level docs, but the public package is intentionally usable as a **portable local framework**.
+
+Portable/core path:
+- project/workstream/job lifecycle and gates
+- dashboard build/projector and local monitoring
+- workflow contract and workflow runner
+- schemas, examples, and regression suite
+
+Optional adapters:
+- Codex session telemetry / CodexBar spend
+- Gemini / OpenAI council planning
+- Apple Keychain credential path
+- imagegen skill bridge
+- GitHub mirroring
+
+Capability matrix:
+
+| Capability | Portable core | Codex-enhanced | Optional adapter |
+| --- | --- | --- | --- |
+| Lifecycle / gates | Yes | Yes | No |
+| Dashboard / runtime | Yes | Yes | No |
+| Workflow runner | Yes | Yes | No |
+| Billing / spend telemetry | Fallback / unknown | Yes | Codex session logs / CodexBar |
+| Council planning | Dry-run only | Yes | Gemini / OpenAI |
+| Image generation | No | Yes | imagegen skill / keychain |
+| GitHub mirror | No | Yes | `gh` |
 
 ## Core Model
 
@@ -90,6 +149,9 @@ cd "$CODEX_HOME/skills/theworkshop" && git pull origin main
 # create project
 python3 scripts/project_new.py --name "Workshop Demo"
 
+# inspect the generated execution contract
+python3 scripts/workflow_check.py --project /path/to/project
+
 # add workstream + job
 python3 scripts/workstream_add.py --project /path/to/project --title "Research"
 python3 scripts/job_add.py --project /path/to/project --workstream WS-YYYYMMDD-001 --title "Draft options memo"
@@ -104,6 +166,8 @@ python3 scripts/optimize_plan.py --project /path/to/project
 python3 scripts/orchestrate_plan.py --project /path/to/project
 python3 scripts/dispatch_orchestration.py --project /path/to/project --dry-run
 python3 scripts/council_plan.py --project /path/to/project --dry-run
+python3 scripts/workflow_runner.py --project /path/to/project --once
+python3 scripts/workflow_runner.py --project /path/to/project --detach
 
 # execute one job
 python3 scripts/job_start.py --project /path/to/project --work-item-id WI-YYYYMMDD-001
@@ -116,6 +180,26 @@ python3 scripts/health.py --project /path/to/project --repair
 python3 scripts/quick.py --project /path/to/project --title "One-off patch" --command "echo done"
 python3 scripts/dashboard_server.py --project /path/to/project --open
 ```
+
+Every project now gets a `WORKFLOW.md` file at the project root. It is the repo-owned execution
+contract for unattended runs: polling cadence, dispatch defaults, pre/post cycle hooks, and the
+shared execution-policy prompt prepended to delegated work-item prompts.
+
+When parallel work is justified, TheWorkshop treats native Codex subagents as the default
+delegation runtime. TheWorkshop orchestration decides which jobs are safe to delegate; the parent
+thread stays responsible for planning, integration, and final synthesis.
+
+TheWorkshop also treats learning capture as a first-class runtime concern:
+
+- shared cross-repo agents can live in `~/.codex/agents/`
+- repo-specific workshop agents live in `.codex/agents/`
+- delegated and looped work may read durable memory, but should stage new durable findings in:
+  - `.theworkshop/memory-proposals/*.json`
+  - `.theworkshop/lessons-candidates/*.json`
+- only curator agents or the parent thread should promote those staged findings into:
+  - `$CODEX_HOME/memories/projects/*.md`
+  - `notes/lessons-learned.md`
+- manual/external delegated runs should use `theworkshop agent-log` for intermediate telemetry and `theworkshop agent-closeout` once for terminal closeout plus staged learning promotion
 
 Expected core outputs:
 
@@ -134,19 +218,21 @@ Expected core outputs:
 
 ## Monitoring + Spend Semantics
 
-- Dashboard auto-opens best-effort at execution start (unless disabled)
+- Dashboard auto-opens best-effort once per session at execution start (unless disabled)
 - Auto-refresh supports stale detection and pause/resume
 - Optional local live transport: `python3 scripts/dashboard_server.py --project /path/to/project`
   - serves `dashboard.html` over `http://127.0.0.1:*`
   - publishes `/events` SSE updates so the page can switch from poll mode to live mode
-- Cost display is billing-aware:
+- `monitor_runtime.py` owns dashboard open/watch/serve/stop/cleanup so repeated lifecycle events reuse the same runtime instead of spawning fresh browser/server state
+- Project terminal closeout prunes transient runtime artifacts while preserving canonical outputs, logs, and dashboard artifacts
+- Cost display is billing-aware when the **Codex telemetry adapter** is available:
   - `subscription_auth`: billed cost shown as `$0` marginal, API-equivalent shown secondarily
   - `metered_api`: billed cost from exact telemetry when available
   - `unknown`: estimate-first fallback
 
 ## Image Generation Path
 
-Use work-item scoped image generation:
+Use work-item scoped image generation through the **optional imagegen adapter**:
 
 ```bash
 python3 scripts/imagegen_job.py --project /path/to/project --work-item-id WI-YYYYMMDD-002
@@ -178,7 +264,8 @@ The `apple-keychain` skill remains optional and cross-platform fallback behavior
 ## Reliability Checks
 
 ```bash
-python3 scripts/doctor.py
+python3 scripts/doctor.py --profile codex
+python3 scripts/doctor.py --profile portable
 cd scripts && for t in *_test.py; do python3 "$t"; done
 ```
 
@@ -226,6 +313,7 @@ theworkshop/
   scripts/
   references/
   examples/
+  docs/subagents.html
   docs/assets/
   .github/
 ```

@@ -1,10 +1,18 @@
 {
   "schema": "theworkshop.tokenrates.v1",
   "version": 1,
-  "updated_at": "2026-02-16T00:00:00Z",
+  "updated_at": "2026-03-05T00:00:00Z",
   "default_currency": "USD",
-  "fallback_model": "gpt-5.3-codex",
+  "fallback_model": "gpt-5.4",
   "models": {
+    "gpt-5.4": {
+      "usd_per_1m": {
+        "input": 2.5,
+        "cached_input": 0.25,
+        "output": 15.0,
+        "reasoning_output": 15.0
+      }
+    },
     "gpt-5.3-codex": {
       "usd_per_1m": {
         "input": 1.5,
@@ -31,10 +39,11 @@
     }
   },
   "aliases": {
+    "gpt-5.4": "gpt-5.4",
     "gpt-5.3-codex": "gpt-5.3-codex",
     "gpt-5.3-codex-spark": "gpt-5.3-codex-spark",
     "gpt-5.3-codex spark": "gpt-5.3-codex-spark",
     "codex_bengalfox": "gpt-5.3-codex-spark",
-    "codex": "gpt-5.3-codex"
+    "codex": "gpt-5.4"
   }
 }

@@ -57,6 +57,7 @@ def watched_paths(project_root: Path) -> list[Path]:
     paths: list[Path] = []
     # Core control-plane docs
     paths.append(project_root / "plan.md")
+    paths.append(project_root / "WORKFLOW.md")
     paths.append(project_root / "workstreams" / "index.md")
 
     # Workstreams + jobs plans
@@ -65,10 +66,12 @@ def watched_paths(project_root: Path) -> list[Path]:
 
     # Logs/outputs that influence dashboard numbers
     paths.append(project_root / "logs" / "execution.jsonl")
+    paths.append(project_root / "logs" / "workflow-runner.jsonl")
     paths.append(project_root / "outputs" / "rewards.json")
     paths.extend(sorted(project_root.glob("outputs/*-task-tracker.csv")))
     paths.append(project_root / "notes" / "github-map.json")
     paths.append(project_root / "notes" / "lessons-index.json")
+    paths.append(project_root / "tmp" / "workflow-runner.json")
     return paths
 
 
@@ -137,11 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--log-file", default="", help="Log file path for detach mode (default: <project>/tmp/dashboard-watch.log)")
     args = parser.parse_args(argv)
 
-    # Opt-out for CI/tests/headless. If the user doesn't want a browser, they usually
-    # don't want background monitor processes either.
+    # Opt-out for CI/tests/headless when background monitoring itself is disabled.
     if str(os.environ.get("THEWORKSHOP_NO_MONITOR") or "").strip() == "1":
-        return 0
-    if str(os.environ.get("THEWORKSHOP_NO_OPEN") or "").strip() == "1":
         return 0
 
     project_root = resolve_project_root(args.project)

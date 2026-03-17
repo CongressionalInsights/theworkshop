@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subagents, Explained | TheWorkshop</title>
+    <link rel="icon" type="image/png" href="assets/theworkshop-mark.png" />
+    <style>
+      :root {
+        --paper: #f5efe4;
+        --paper-deep: #eadfcd;
+        --ink: #14202b;
+        --ink-soft: rgba(20, 32, 43, 0.72);
+        --navy: #183a57;
+        --teal: #1a6a67;
+        --rust: #b65235;
+        --gold: #b88a3e;
+        --line: rgba(20, 32, 43, 0.12);
+        --card: rgba(255, 252, 247, 0.76);
+        --card-strong: rgba(255, 252, 247, 0.94);
+        --shadow: 0 28px 80px rgba(36, 29, 15, 0.14);
+        --radius-xl: 28px;
+        --radius-lg: 20px;
+        --radius-md: 14px;
+        --mono: "SF Mono", "Menlo", "Monaco", monospace;
+        --sans: "Avenir Next", "Segoe UI", sans-serif;
+        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Baskerville", serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: var(--sans);
+        background:
+          radial-gradient(circle at top left, rgba(184, 138, 62, 0.16), transparent 30%),
+          radial-gradient(circle at 85% 12%, rgba(26, 106, 103, 0.14), transparent 26%),
+          linear-gradient(135deg, #f8f3ea 0%, var(--paper) 48%, var(--paper-deep) 100%);
+        min-height: 100vh;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.38;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22)),
+          radial-gradient(circle at 10% 30%, rgba(20, 32, 43, 0.03) 0 2px, transparent 2px),
+          radial-gradient(circle at 70% 65%, rgba(20, 32, 43, 0.035) 0 1.2px, transparent 1.2px),
+          radial-gradient(circle at 50% 80%, rgba(20, 32, 43, 0.028) 0 1px, transparent 1px);
+        background-size: auto, 130px 130px, 100px 100px, 80px 80px;
+        mix-blend-mode: multiply;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        width: min(1200px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 28px 0 80px;
+      }
+
+      .topline {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: center;
+        margin-bottom: 22px;
+        font-size: 0.88rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .topline .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(20, 32, 43, 0.12);
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(12px);
+      }
+
+      .badge img {
+        width: 22px;
+        height: 22px;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--rust), #e0865e);
+        box-shadow: 0 0 0 6px rgba(182, 82, 53, 0.12);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.35fr 0.95fr;
+        gap: 24px;
+        align-items: stretch;
+        margin-bottom: 24px;
+      }
+
+      .hero-copy,
+      .hero-board,
+      .section,
+      .glass-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-xl);
+        border: 1px solid rgba(20, 32, 43, 0.1);
+        background: linear-gradient(180deg, rgba(255, 252, 247, 0.93), rgba(255, 248, 240, 0.78));
+        box-shadow: var(--shadow);
+      }
+
+      .hero-copy {
+        padding: 34px;
+      }
+
+      .hero-copy::after,
+      .hero-board::after,
+      .section::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.26), transparent 52%);
+      }
+
+      .hero-label {
+        display: inline-flex;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(20, 32, 43, 0.12);
+        background: rgba(24, 58, 87, 0.05);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 600;
+      }
+
+      .hero-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+
+      .hero-brand img {
+        width: 56px;
+        height: 56px;
+        border-radius: 18px;
+        box-shadow: 0 14px 30px rgba(24, 58, 87, 0.12);
+      }
+
+      .hero-brand strong {
+        display: block;
+        font-size: 1.1rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .hero-brand span {
+        display: block;
+        margin-top: 3px;
+        color: var(--ink-soft);
+        font-size: 0.92rem;
+      }
+
+      h1 {
+        margin-top: 20px;
+        font-family: var(--serif);
+        font-size: clamp(2.8rem, 5vw, 5rem);
+        line-height: 0.94;
+        letter-spacing: -0.04em;
+      }
+
+      .hero-copy p {
+        margin: 20px 0 0;
+        font-size: 1.06rem;
+        line-height: 1.7;
+        color: var(--ink-soft);
+        max-width: 62ch;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 26px;
+      }
+
+      .hero-actions a,
+      .segmented button,
+      .role-list button,
+      .path-tabs button,
+      .stepper button,
+      .decision-switch button {
+        cursor: pointer;
+        border: 0;
+        color: inherit;
+        font: inherit;
+      }
+
+      .hero-actions a {
+        text-decoration: none;
+        padding: 14px 18px;
+        border-radius: 999px;
+        font-size: 0.92rem;
+        letter-spacing: 0.04em;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .hero-actions a.primary {
+        background: var(--navy);
+        color: #f8f2ea;
+        box-shadow: 0 18px 40px rgba(24, 58, 87, 0.18);
+      }
+
+      .hero-actions a.secondary {
+        background: rgba(255, 255, 255, 0.62);
+        border: 1px solid rgba(20, 32, 43, 0.12);
+      }
+
+      .hero-actions a:hover,
+      .segmented button:hover,
+      .role-list button:hover,
+      .path-tabs button:hover,
+      .stepper button:hover,
+      .decision-switch button:hover {
+        transform: translateY(-2px);
+      }
+
+      .hero-board {
+        padding: 26px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 18px;
+        background:
+          radial-gradient(circle at top right, rgba(24, 58, 87, 0.1), transparent 26%),
+          linear-gradient(180deg, rgba(255, 252, 247, 0.95), rgba(242, 235, 224, 0.85));
+      }
+
+      .board-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .board-stat {
+        padding: 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(20, 32, 43, 0.08);
+      }
+
+      .board-stat .eyebrow {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .board-stat strong {
+        display: block;
+        font-size: 1.9rem;
+        font-family: var(--serif);
+      }
+
+      .board-note {
+        display: grid;
+        gap: 10px;
+      }
+
+      .board-note .line {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+        font-size: 0.92rem;
+        color: var(--ink-soft);
+      }
+
+      .board-note .line:first-child {
+        border-top: 0;
+      }
+
+      .board-note .line strong {
+        color: var(--ink);
+      }
+
+      .section {
+        padding: 28px;
+        margin-bottom: 24px;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: end;
+        margin-bottom: 22px;
+      }
+
+      .section-head p {
+        margin: 12px 0 0;
+        color: var(--ink-soft);
+        max-width: 70ch;
+        line-height: 1.6;
+      }
+
+      .section-head .meta {
+        font-size: 0.75rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        white-space: nowrap;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 18px;
+      }
+
+      .glass-card {
+        padding: 20px;
+      }
+
+      .decision-switch {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .decision-switch button,
+      .path-tabs button,
+      .stepper button {
+        padding: 12px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(20, 32, 43, 0.12);
+        background: rgba(255, 255, 255, 0.58);
+        transition: all 180ms ease;
+      }
+
+      .decision-switch button.active,
+      .path-tabs button.active,
+      .stepper button.active {
+        background: var(--navy);
+        color: #f9f4ed;
+        box-shadow: 0 16px 36px rgba(24, 58, 87, 0.14);
+      }
+
+      .decision-panel {
+        display: grid;
+        gap: 16px;
+      }
+
+      .decision-result {
+        padding: 20px;
+        border-radius: var(--radius-lg);
+        background: linear-gradient(135deg, rgba(24, 58, 87, 0.96), rgba(16, 42, 64, 0.92));
+        color: #f9f3eb;
+      }
+
+      .decision-result span {
+        display: block;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        opacity: 0.7;
+      }
+
+      .decision-result strong {
+        display: block;
+        margin: 10px 0 8px;
+        font-size: 1.65rem;
+        font-family: var(--serif);
+      }
+
+      .decision-result p {
+        margin: 0;
+        line-height: 1.7;
+      }
+
+      .signal-strip {
+        display: grid;
+        gap: 10px;
+      }
+
+      .signal-strip .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .signal-strip .pill {
+        padding: 6px 9px;
+        border-radius: 999px;
+        background: rgba(20, 32, 43, 0.08);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .signal-strip .pill.good {
+        background: rgba(26, 106, 103, 0.14);
+        color: var(--teal);
+      }
+
+      .signal-strip .pill.warn {
+        background: rgba(182, 82, 53, 0.14);
+        color: var(--rust);
+      }
+
+      .role-layout {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .role-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .role-list button {
+        text-align: left;
+        padding: 16px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.52);
+        border: 1px solid rgba(20, 32, 43, 0.09);
+        transition: all 180ms ease;
+      }
+
+      .role-list button.active {
+        background: linear-gradient(135deg, rgba(183, 138, 62, 0.16), rgba(24, 58, 87, 0.08));
+        border-color: rgba(24, 58, 87, 0.22);
+      }
+
+      .role-list button span {
+        display: block;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin-bottom: 6px;
+      }
+
+      .role-detail {
+        display: grid;
+        gap: 16px;
+      }
+
+      .role-detail h3 {
+        font-size: 2rem;
+        font-family: var(--serif);
+      }
+
+      .role-copy {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .role-box {
+        padding: 18px;
+        border-radius: var(--radius-md);
+        background: rgba(255, 255, 255, 0.68);
+        border: 1px solid rgba(20, 32, 43, 0.08);
+      }
+
+      .role-box small {
+        display: block;
+        margin-bottom: 12px;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .role-box ul,
+      .layer-card ul,
+      .surface-card ul,
+      .guardrails ul {
+        margin: 0;
+        padding-left: 18px;
+        line-height: 1.65;
+        color: var(--ink-soft);
+      }
+
+      .role-box p,
+      .path-detail p,
+      .layer-card p,
+      .surface-card p,
+      .guardrails p {
+        margin: 0;
+        line-height: 1.7;
+        color: var(--ink-soft);
+      }
+
+      .layer-grid,
+      .surface-grid,
+      .guardrail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .layer-card,
+      .surface-card,
+      .guardrails {
+        padding: 20px;
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.66);
+        border: 1px solid rgba(20, 32, 43, 0.08);
+      }
+
+      .layer-card strong,
+      .surface-card strong,
+      .guardrails strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 1.15rem;
+      }
+
+      .layer-card code,
+      .surface-card code,
+      .path-detail code {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        background: rgba(24, 58, 87, 0.08);
+        font-size: 0.82rem;
+        font-family: var(--mono);
+      }
+
+      .path-layout {
+        display: grid;
+        gap: 16px;
+      }
+
+      .path-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .path-detail {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 18px;
+      }
+
+      .flow {
+        display: grid;
+        gap: 12px;
+      }
+
+      .flow-step {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: start;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.64);
+        border: 1px solid rgba(20, 32, 43, 0.08);
+      }
+
+      .flow-step .index {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: rgba(24, 58, 87, 0.1);
+        font-weight: 700;
+      }
+
+      .flow-step strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .path-panel {
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+
+      .path-panel .cardline {
+        padding: 16px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(247, 239, 229, 0.68));
+        border: 1px solid rgba(20, 32, 43, 0.08);
+      }
+
+      .stepper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .learning-board {
+        display: grid;
+        grid-template-columns: 0.92fr 1.08fr;
+        gap: 18px;
+      }
+
+      .learning-rail {
+        display: grid;
+        gap: 12px;
+      }
+
+      .learning-stage {
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.58);
+        border: 1px solid rgba(20, 32, 43, 0.08);
+        transition: all 180ms ease;
+      }
+
+      .learning-stage.active {
+        background: linear-gradient(135deg, rgba(184, 138, 62, 0.14), rgba(24, 58, 87, 0.08));
+        border-color: rgba(24, 58, 87, 0.22);
+      }
+
+      .learning-stage strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .learning-callout {
+        padding: 22px;
+        border-radius: 20px;
+        background: linear-gradient(160deg, rgba(24, 58, 87, 0.97), rgba(17, 49, 76, 0.95));
+        color: #fbf5eb;
+      }
+
+      .learning-callout small {
+        display: block;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        opacity: 0.7;
+      }
+
+      .learning-callout h3 {
+        font-family: var(--serif);
+        font-size: 2.1rem;
+        margin-bottom: 10px;
+      }
+
+      .learning-callout p {
+        margin: 0 0 14px;
+        line-height: 1.7;
+      }
+
+      .learning-callout code {
+        display: inline-block;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        font-family: var(--mono);
+        font-size: 0.84rem;
+      }
+
+      .surface-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .surface-card {
+        min-height: 180px;
+      }
+
+      .surface-card em {
+        display: block;
+        margin-top: 10px;
+        font-style: normal;
+        color: var(--ink-soft);
+        font-size: 0.92rem;
+      }
+
+      .guardrail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .guardrails.good {
+        border-color: rgba(26, 106, 103, 0.18);
+      }
+
+      .guardrails.risk {
+        border-color: rgba(182, 82, 53, 0.18);
+      }
+
+      .foot {
+        padding: 18px 6px 0;
+        color: var(--ink-soft);
+        font-size: 0.92rem;
+        line-height: 1.7;
+      }
+
+      .mono {
+        font-family: var(--mono);
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .split,
+        .role-layout,
+        .path-detail,
+        .learning-board,
+        .layer-grid,
+        .surface-grid,
+        .guardrail-grid,
+        .role-copy {
+          grid-template-columns: 1fr;
+        }
+
+        .surface-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          width: min(100vw - 18px, 100%);
+          padding-top: 12px;
+        }
+
+        .topline {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .hero-copy,
+        .hero-board,
+        .section {
+          padding: 22px;
+        }
+
+        h1 {
+          font-size: clamp(2.2rem, 12vw, 3.6rem);
+        }
+
+        .surface-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .hero-copy,
+        .hero-board,
+        .section {
+          animation: rise 700ms ease both;
+        }
+
+        .hero-board {
+          animation-delay: 120ms;
+        }
+
+        .section:nth-of-type(2) {
+          animation-delay: 170ms;
+        }
+
+        .section:nth-of-type(3) {
+          animation-delay: 240ms;
+        }
+
+        @keyframes rise {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="topline">
+        <div class="badge"><img src="assets/theworkshop-mark.png" alt="" /> TheWorkshop OSS docs</div>
+        <div>Subagents, structured delegation, and truthful closeout</div>
+      </div>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="hero-brand">
+            <img src="assets/theworkshop-mark.png" alt="TheWorkshop mark" />
+            <div>
+              <strong>TheWorkshop</strong>
+              <span>Open-source explainer for the native subagent model</span>
+            </div>
+          </div>
+          <div class="hero-label">Signal Atlas / Human-readable control room</div>
+          <h1>Subagents are choreography, not magic.</h1>
+          <p>
+            A good subagent system does one thing cleanly: it breaks work into bounded jobs, hands the right job to the right
+            specialist, and keeps the parent thread responsible for judgment, integration, and final truth. TheWorkshop adds
+            structure around that runtime so the delegation is visible, auditable, and safe to learn from.
+          </p>
+          <div class="hero-actions">
+            <a class="primary" href="#decision-engine">Start with the decision filter</a>
+            <a class="secondary" href="#workshop-layers">Jump to TheWorkshop layers</a>
+          </div>
+        </div>
+
+        <aside class="hero-board">
+          <div class="board-grid">
+            <div class="board-stat">
+              <span class="eyebrow">Runtime truth</span>
+              <strong>Explicit spawn</strong>
+              <span>No hidden delegation. The parent decides when and why.</span>
+            </div>
+            <div class="board-stat">
+              <span class="eyebrow">Context model</span>
+              <strong>Isolated by default</strong>
+              <span>Subagents work with bounded context, not your whole live scratchpad.</span>
+            </div>
+            <div class="board-stat">
+              <span class="eyebrow">TheWorkshop overlay</span>
+              <strong>Control plane + runtime</strong>
+              <span>Dispatch decides. Native subagents execute. Dashboard tells the truth.</span>
+            </div>
+            <div class="board-stat">
+              <span class="eyebrow">Learning rule</span>
+              <strong>Stage first</strong>
+              <span>Memory and lessons are proposed during work, promoted only at the right closeout boundary.</span>
+            </div>
+          </div>
+          <div class="board-note">
+            <div class="line"><strong>Broad rule</strong> Use subagents for bounded read-heavy exploration, review, tests, or disjoint write scopes.</div>
+            <div class="line"><strong>Broad risk</strong> Overlapping write ownership and unclear acceptance criteria turn delegation into drift.</div>
+            <div class="line"><strong>Workshop rule</strong> Manual runs log progress with <span class="mono">agent-log</span>, then close once with <span class="mono">agent-closeout</span>.</div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" id="decision-engine">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">1 / Decide first</div>
+            <h2>Should this be delegated?</h2>
+            <p>
+              Broadly, subagents are worth the coordination cost only when the work is bounded, authorized, and either read-heavy
+              or clearly partitioned. TheWorkshop keeps the same test, then adds stricter observability and closeout rules.
+            </p>
+          </div>
+          <div class="meta">Interactive filter</div>
+        </div>
+
+        <div class="split">
+          <div class="glass-card decision-panel">
+            <div class="decision-switch" id="decision-switches"></div>
+            <div class="signal-strip" id="decision-signals"></div>
+          </div>
+
+          <div class="decision-result" id="decision-result">
+            <span>Recommendation</span>
+            <strong>Delegate when the shape is clean.</strong>
+            <p>Choose the conditions on the left to see the recommended operating mode.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="roles">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">2 / Match the role</div>
+            <h2>Each subagent should be narrow on purpose.</h2>
+            <p>
+              The generic Codex model favors a few reusable roles. TheWorkshop keeps that discipline, then layers repo-scoped
+              agents for roles that encode local rules like staged learning, loop control, and curated durable memory writes.
+            </p>
+          </div>
+          <div class="meta">Role desk</div>
+        </div>
+
+        <div class="role-layout">
+          <div class="role-list" id="role-list"></div>
+          <div class="glass-card role-detail" id="role-detail"></div>
+        </div>
+      </section>
+
+      <section class="section" id="workshop-layers">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">3 / TheWorkshop overlay</div>
+            <h2>TheWorkshop adds three disciplined layers.</h2>
+            <p>
+              Native subagents stay the runtime. TheWorkshop adds a planning layer that decides what should run, an observability
+              layer that tells the truth about what actually happened, and a staged learning layer that prevents messy durable
+              writes in the middle of delegated work.
+            </p>
+          </div>
+          <div class="meta">Planning / Runtime / Observability</div>
+        </div>
+
+        <div class="layer-grid">
+          <article class="layer-card">
+            <strong>Planning layer</strong>
+            <p>Project, workstream, and job plans decide ownership, order, and acceptance criteria before execution starts.</p>
+            <ul>
+              <li>Canonical job selector: <span class="mono">agent_profile</span></li>
+              <li>Planning metadata: <span class="mono">references/agents/*.json</span></li>
+              <li>Project contract: <span class="mono">WORKFLOW.md</span></li>
+            </ul>
+            <code>.codex/config.toml + plan.md</code>
+          </article>
+
+          <article class="layer-card">
+            <strong>Runtime layer</strong>
+            <p>Native Codex subagents do the delegated work. Repo-local agent files define TheWorkshop-specific behavior cleanly.</p>
+            <ul>
+              <li>Shared library: <span class="mono">~/.codex/agents/*.toml</span></li>
+              <li>Repo-specific overlays: <span class="mono">.codex/agents/*.toml</span></li>
+              <li>Parent thread integrates and decides</li>
+            </ul>
+            <code>dispatch decides, subagents execute</code>
+          </article>
+
+          <article class="layer-card">
+            <strong>Observability + learning layer</strong>
+            <p>Delegation is logged, surfaced on the dashboard, and only promoted into durable memory or lessons through curated paths.</p>
+            <ul>
+              <li>Canonical telemetry: <span class="mono">logs/agents.jsonl</span></li>
+              <li>Staged proposals: <span class="mono">.theworkshop/*-candidates</span></li>
+              <li>Terminal closeout promotion: <span class="mono">agent-closeout</span></li>
+            </ul>
+            <code>truth before polish</code>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="paths">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">4 / Pick the path</div>
+            <h2>The run path changes the closeout contract.</h2>
+            <p>
+              The generic idea is stable: spawn bounded work and keep the parent on synthesis. TheWorkshop then draws a sharper line
+              between manual/external runs, dispatch-driven runs, and loop-driven runs, because each one reaches curation and telemetry differently.
+            </p>
+          </div>
+          <div class="meta">Manual / Dispatch / Loop</div>
+        </div>
+
+        <div class="path-layout">
+          <div class="path-tabs" id="path-tabs"></div>
+          <div class="glass-card path-detail" id="path-detail"></div>
+        </div>
+      </section>
+
+      <section class="section" id="learning">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">5 / Learn without smearing state</div>
+            <h2>Memory and lessons are staged, not sprayed across the system.</h2>
+            <p>
+              This is where TheWorkshop gets opinionated. Subagents may discover durable rules or reusable lessons, but they should
+              not write project memory or canonical lesson files directly. They stage candidates first. Promotion happens once the run
+              or loop reaches a proper terminal boundary.
+            </p>
+          </div>
+          <div class="meta">Promotion flow</div>
+        </div>
+
+        <div class="stepper" id="learning-stepper"></div>
+        <div class="learning-board">
+          <div class="learning-rail" id="learning-rail"></div>
+          <div class="learning-callout" id="learning-callout"></div>
+        </div>
+      </section>
+
+      <section class="section" id="surface-map">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">6 / Surface map</div>
+            <h2>Files that matter when you reason about TheWorkshop subagents.</h2>
+            <p>
+              Broadly, subagents are about spawn, scope, and integration. In TheWorkshop, the files below show exactly where those
+              responsibilities live, which is why the skill stays auditable instead of becoming a black box.
+            </p>
+          </div>
+          <div class="meta">Runtime surfaces</div>
+        </div>
+
+        <div class="surface-grid">
+          <article class="surface-card">
+            <strong>Project agent config</strong>
+            <code>.codex/agents/*.toml</code>
+            <em>Executable repo-local roles such as <span class="mono">theworkshop_worker</span> and curator agents.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Shared agent library</strong>
+            <code>~/.codex/agents/*.toml</code>
+            <em>Cross-repo reusable roles that stay generic and narrow.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Planning registry</strong>
+            <code>references/agents/*.json</code>
+            <em>Planning metadata, budgets, and defaults. Not the executable runtime.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Runtime settings</strong>
+            <code>.codex/config.toml</code>
+            <em>Per-project limits like depth and concurrency that travel with the repo.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Canonical telemetry</strong>
+            <code>logs/agents.jsonl</code>
+            <em>Manual and dispatch runs both land here so the dashboard has one truthful event stream.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Manual closeout</strong>
+            <code>theworkshop agent-closeout</code>
+            <em>The one terminal path for manual or external runs that should also promote staged learning.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Staged durable memory</strong>
+            <code>.theworkshop/memory-proposals/*.json</code>
+            <em>Durable rules are proposed here first, optionally scoped by <span class="mono">agent_id</span>.</em>
+          </article>
+          <article class="surface-card">
+            <strong>Staged lessons</strong>
+            <code>.theworkshop/lessons-candidates/*.json</code>
+            <em>Reusable heuristics and pitfalls land here before curation into canonical lesson files.</em>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="guardrails">
+        <div class="section-head">
+          <div>
+            <div class="hero-label">7 / Guardrails</div>
+            <h2>What good subagent usage looks like in practice.</h2>
+            <p>
+              The broad advice and the TheWorkshop advice line up: make delegation explicit, keep ownership crisp, and treat durable
+              learning as a closeout concern instead of a casual side effect.
+            </p>
+          </div>
+          <div class="meta">Do / Avoid</div>
+        </div>
+
+        <div class="guardrail-grid">
+          <article class="guardrails good">
+            <strong>Do</strong>
+            <ul>
+              <li>Spawn for bounded jobs with clear outputs and acceptance criteria.</li>
+              <li>Keep the parent thread on integration, decisions, and final synthesis.</li>
+              <li>Use repo-scoped agents when the repo has local rules worth encoding.</li>
+              <li>Stage durable memory and lessons first, then promote through curators or explicit closeout.</li>
+              <li>Use <span class="mono">agent-log</span> for non-terminal manual telemetry and <span class="mono">agent-closeout</span> once at the end.</li>
+            </ul>
+          </article>
+
+          <article class="guardrails risk">
+            <strong>Avoid</strong>
+            <ul>
+              <li>Parallel overlapping write ownership just because concurrency is available.</li>
+              <li>Letting a worker silently mutate durable memory or canonical lessons mid-run.</li>
+              <li>Using stale planning metadata as if it were the executable runtime definition.</li>
+              <li>Relying on raw terminal-looking log events to imply a correct closeout.</li>
+              <li>Turning “subagents” into a giant catalog of vague generalists.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <div class="foot">
+        This page ships with the open-source repo as a self-contained explainer. Open it directly after install, share it with
+        collaborators, or publish it through any static-docs workflow without needing a framework build step.
+      </div>
+    </main>
+
+    <script>
+      const decisionState = {
+        bounded: true,
+        authorized: true,
+        isolated: true,
+      };
+
+      const decisionDefinitions = [
+        {
+          key: "bounded",
+          label: "Bounded scope",
+          good: "The work has a clear objective, output, and ownership boundary.",
+          bad: "The ask is still fuzzy or still being decomposed.",
+        },
+        {
+          key: "authorized",
+          label: "Explicit authorization",
+          good: "The prompt or policy allows subagents or parallel work here.",
+          bad: "No explicit delegation authorization yet.",
+        },
+        {
+          key: "isolated",
+          label: "Read-heavy or disjoint writes",
+          good: "Either mostly read-only or clearly partitioned write scope.",
+          bad: "Overlapping writes or unclear ownership will cause drift.",
+        },
+      ];
+
+      const roles = [
+        {
+          id: "explorer",
+          label: "Explorer",
+          family: "Built-in / broad",
+          title: "Explorer maps terrain and brings back evidence.",
+          description:
+            "Use it for dependency tracing, repo mapping, evidence gathering, and any task where you mostly need the answer surface clarified before implementation moves.",
+          broad: [
+            "Read-heavy and low-risk.",
+            "Best when the parent still owns the next decision.",
+            "Produces findings, not sprawling implementation branches.",
+          ],
+          workshop: [
+            "Maps naturally to repo or shared explorer agents.",
+            "Ideal for pre-dispatch mapping and verification prep.",
+            "Can stage lessons if it finds reusable research tactics, but should not promote them.",
+          ],
+        },
+        {
+          id: "worker",
+          label: "Worker",
+          family: "Built-in / broad",
+          title: "Worker executes bounded production work.",
+          description:
+            "This is the implementation role: it gets a scoped task, a write boundary, and a definition of done. If that boundary is ambiguous, the parent should not delegate yet.",
+          broad: [
+            "Good for disjoint implementation or transformation work.",
+            "Bad for overlapping edits or hand-wavy ownership.",
+            "Should return a concise synthesis, not dump raw scratch noise back upstream.",
+          ],
+          workshop: [
+            "The canonical default planning profile is `theworkshop_worker`.",
+            "Dispatch emits its runtime agent and profile into telemetry.",
+            "Manual workers should use `agent-log` during work and `agent-closeout` once at the end.",
+          ],
+        },
+        {
+          id: "reviewer",
+          label: "Reviewer",
+          family: "Built-in / broad",
+          title: "Reviewer pressure-tests correctness and risk.",
+          description:
+            "Think of this role as adversarial verification with bounded scope: review, gap finding, test triage, or closeout validation.",
+          broad: [
+            "Works well in parallel with implementation when write scopes do not overlap.",
+            "Useful for tests, regression scanning, and closeout checks.",
+            "Should enumerate concrete findings and missing evidence.",
+          ],
+          workshop: [
+            "Often represented by `theworkshop_reviewer` or shared review helpers.",
+            "Feeds the dashboard and verification story, not just the code story.",
+            "Can stage lessons or memory proposals if it discovers repeated failure modes.",
+          ],
+        },
+        {
+          id: "curator",
+          label: "Curator",
+          family: "TheWorkshop-specific",
+          title: "Curator is the narrow path for durable promotion.",
+          description:
+            "This is the role TheWorkshop adds to keep learning clean. Curators promote only after the run has ended cleanly enough to justify changing durable memory or canonical lessons.",
+          broad: [
+            "Not a generic built-in concept.",
+            "Exists because durable writes deserve stronger rules than ordinary telemetry.",
+            "Prevents every worker from becoming an unreviewed memory writer.",
+          ],
+          workshop: [
+            "Repo-scoped curator agents own promotion into memory and lesson artifacts.",
+            "They operate over staged proposals, usually filtered by `agent_id` or work item.",
+            "They keep long-lived state changes rare, explicit, and inspectable.",
+          ],
+        },
+        {
+          id: "loop",
+          label: "Loop Worker",
+          family: "TheWorkshop-specific",
+          title: "Loop workers run bounded repeated attempts without losing the rails.",
+          description:
+            "Loops are powerful only when they are finite, inspectable, and prevented from smearing half-baked learning into durable state. That is why TheWorkshop treats loop control as its own role.",
+          broad: [
+            "Loops need clear completion promises, caps, and stop reasons.",
+            "Open-ended recursive autonomy is usually a coordination bug in disguise.",
+            "Progress should be visible in filesystem artifacts, not only chat memory.",
+          ],
+          workshop: [
+            "Loop attempts can stage findings per attempt, but promotion waits for terminal state.",
+            "The loop control plane remains in `loop_job.py` even when a loop worker executes attempts.",
+            "The final summary records promoted counts and closeout state per work item.",
+          ],
+        },
+      ];
+
+      const paths = [
+        {
+          id: "manual",
+          label: "Manual / external path",
+          summary: "Direct parent-managed delegation with explicit telemetry and one terminal closeout.",
+          steps: [
+            ["Spawn", "The parent decides to delegate a bounded job outside dispatch."],
+            ["Log progress", "Non-terminal lifecycle events go through `theworkshop agent-log` so the dashboard stays truthful."],
+            ["Stage learning", "Workers may write staged memory or lesson candidates, optionally tagged with `agent_id`."],
+            ["Close once", "The terminal event must go through `theworkshop agent-closeout`, which curates and promotes exactly for that run."],
+          ],
+          notes: [
+            "Best when you need a one-off direct native subagent run without building a full orchestration wave.",
+            "Raw terminal-looking log events are intentionally telemetry-only. They do not imply correct promotion.",
+          ],
+          code: "agent-log during work, agent-closeout at the end",
+        },
+        {
+          id: "dispatch",
+          label: "Dispatch control plane",
+          summary: "TheWorkshop orchestration decides what should run, then native subagents execute the delegated jobs.",
+          steps: [
+            ["Plan waves", "Runnable jobs are grouped and resolved to canonical runtime agents."],
+            ["Dispatch", "The dispatcher emits spawn and progress telemetry and writes prompt artifacts per job."],
+            ["Execute", "Subagents receive scoped prompts plus the staged-learning instructions for that run."],
+            ["Auto-curate", "Dispatch closeout promotes staged learning through its own control-plane path and updates the dashboard."],
+          ],
+          notes: [
+            "This is the preferred path when orchestration artifacts already exist.",
+            "The dispatcher remains the decision layer; it is not a replacement runtime.",
+          ],
+          code: "outputs/orchestration.json -> dispatch_orchestration.py",
+        },
+        {
+          id: "loop",
+          label: "Loop path",
+          summary: "Repeated execution with explicit caps, terminal stop reasons, and delayed learning promotion.",
+          steps: [
+            ["Start loop", "The work item is marked active with loop mode, caps, and completion promise metadata."],
+            ["Attempt", "Each pass may stage lessons or memory proposals and records attempt-local state."],
+            ["Terminal boundary", "The loop ends only on completion, block, stop, timeout, or max-iteration boundary."],
+            ["Promote after terminal", "Curators aggregate and promote stable findings after the loop truly ends."],
+          ],
+          notes: [
+            "The point is to keep repeated work inspectable rather than letting it recurse invisibly.",
+            "Filesystem-state progress matters because looped agents should not depend on fragile conversational memory alone.",
+          ],
+          code: "loop_job.py owns terminal promotion timing",
+        },
+      ];
+
+      const learningStages = [
+        {
+          id: "capture",
+          label: "1. Capture during work",
+          title: "Subagents may propose, not publish.",
+          copy:
+            "A worker, reviewer, or explorer can notice a durable rule or a reusable lesson while executing. The correct move is to write a staged proposal, not touch the final memory or lessons files directly.",
+          artifact: ".theworkshop/memory-proposals/*.json and .theworkshop/lessons-candidates/*.json",
+        },
+        {
+          id: "scope",
+          label: "2. Scope the run",
+          title: "Attach the learning to a real run boundary.",
+          copy:
+            "Manual and external runs can now carry `agent_id`, so the system can isolate which proposals belong to which delegated run even when multiple agents touch the same work item.",
+          artifact: "agent_id on staged records",
+        },
+        {
+          id: "curate",
+          label: "3. Curate at the right time",
+          title: "Promotion is a closeout action, not a background side effect.",
+          copy:
+            "Dispatch and loop paths already know when their own runs are terminal. Manual or external paths now use `theworkshop agent-closeout` to run the same curation discipline exactly once.",
+          artifact: "memory_curate.py and lessons_curate.py",
+        },
+        {
+          id: "promote",
+          label: "4. Promote durable knowledge",
+          title: "Only stable findings become durable memory or canonical lessons.",
+          copy:
+            "Curators dedupe, score, and promote only the findings that deserve to outlive the run: repeated pitfalls, enduring workflow rules, and reusable execution patterns.",
+          artifact: "$CODEX_HOME/memories/projects/*.md and notes/lessons-learned.md",
+        },
+        {
+          id: "telemetry",
+          label: "5. Tell the truth",
+          title: "The terminal event should say what actually happened.",
+          copy:
+            "The closeout event carries promoted counts and errors, so the dashboard shows not only that a run ended, but whether it actually produced durable learning and how that promotion happened.",
+          artifact: "logs/agents.jsonl + dashboard recent events",
+        },
+      ];
+
+      const decisionSwitches = document.getElementById("decision-switches");
+      const decisionSignals = document.getElementById("decision-signals");
+      const decisionResult = document.getElementById("decision-result");
+
+      function renderDecision() {
+        decisionSwitches.innerHTML = "";
+        decisionSignals.innerHTML = "";
+
+        decisionDefinitions.forEach((item) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = decisionState[item.key] ? "active" : "";
+          button.textContent = item.label;
+          button.setAttribute("aria-pressed", String(decisionState[item.key]));
+          button.addEventListener("click", () => {
+            decisionState[item.key] = !decisionState[item.key];
+            renderDecision();
+          });
+          decisionSwitches.appendChild(button);
+
+          const row = document.createElement("div");
+          row.className = "row";
+          const pill = document.createElement("span");
+          pill.className = "pill " + (decisionState[item.key] ? "good" : "warn");
+          pill.textContent = decisionState[item.key] ? "ready" : "missing";
+          const text = document.createElement("div");
+          text.textContent = decisionState[item.key] ? item.good : item.bad;
+          row.appendChild(pill);
+          row.appendChild(text);
+          decisionSignals.appendChild(row);
+        });
+
+        const readyCount = Object.values(decisionState).filter(Boolean).length;
+        let title = "Keep this in the parent thread for now.";
+        let copy =
+          "The shape is not clean enough yet. Finish decomposition, get explicit authorization, or reduce ownership overlap before you delegate.";
+        let background = "linear-gradient(135deg, rgba(182, 82, 53, 0.98), rgba(120, 39, 27, 0.95))";
+
+        if (readyCount === 3) {
+          title = "Delegate with a bounded brief.";
+          copy =
+            "This is the happy path: the job is bounded, explicitly authorized, and safe to isolate. In TheWorkshop, now pick the right run path and make sure telemetry plus closeout are real, not implied.";
+          background = "linear-gradient(135deg, rgba(24, 58, 87, 0.98), rgba(17, 49, 76, 0.95))";
+        } else if (readyCount === 2) {
+          title = "Almost delegateable, but fix the weak edge first.";
+          copy =
+            "You are close, but one missing condition still creates coordination risk. The most common problem is unclear write ownership or missing explicit authorization.";
+          background = "linear-gradient(135deg, rgba(184, 138, 62, 0.98), rgba(145, 103, 34, 0.95))";
+        }
+
+        decisionResult.style.background = background;
+        decisionResult.innerHTML = `<span>Recommendation</span><strong>${title}</strong><p>${copy}</p>`;
+      }
+
+      const roleList = document.getElementById("role-list");
+      const roleDetail = document.getElementById("role-detail");
+      let activeRole = roles[1].id;
+
+      function renderRoles() {
+        roleList.innerHTML = "";
+        const selected = roles.find((role) => role.id === activeRole) || roles[0];
+        roles.forEach((role) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = role.id === activeRole ? "active" : "";
+          button.innerHTML = `<span>${role.family}</span><strong>${role.label}</strong>`;
+          button.addEventListener("click", () => {
+            activeRole = role.id;
+            renderRoles();
+          });
+          roleList.appendChild(button);
+        });
+
+        roleDetail.innerHTML = `
+          <div>
+            <div class="hero-label">${selected.family}</div>
+            <h3>${selected.title}</h3>
+            <p style="margin-top: 14px; color: var(--ink-soft); line-height: 1.7;">${selected.description}</p>
+          </div>
+          <div class="role-copy">
+            <div class="role-box">
+              <small>Broad operating rule</small>
+              <ul>${selected.broad.map((item) => `<li>${item}</li>`).join("")}</ul>
+            </div>
+            <div class="role-box">
+              <small>TheWorkshop overlay</small>
+              <ul>${selected.workshop.map((item) => `<li>${item}</li>`).join("")}</ul>
+            </div>
+          </div>
+        `;
+      }
+
+      const pathTabs = document.getElementById("path-tabs");
+      const pathDetail = document.getElementById("path-detail");
+      let activePath = paths[0].id;
+
+      function renderPath() {
+        pathTabs.innerHTML = "";
+        const selected = paths.find((item) => item.id === activePath) || paths[0];
+
+        paths.forEach((item) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = item.id === activePath ? "active" : "";
+          button.textContent = item.label;
+          button.addEventListener("click", () => {
+            activePath = item.id;
+            renderPath();
+          });
+          pathTabs.appendChild(button);
+        });
+
+        pathDetail.innerHTML = `
+          <div class="flow">
+            ${selected.steps
+              .map(
+                ([stepTitle, stepCopy], index) => `
+                  <div class="flow-step">
+                    <div class="index">${index + 1}</div>
+                    <div>
+                      <strong>${stepTitle}</strong>
+                      <div style="color: var(--ink-soft); line-height: 1.65;">${stepCopy}</div>
+                    </div>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+          <div class="path-panel">
+            <div class="cardline">
+              <strong>${selected.label}</strong>
+              <p style="margin-top: 8px;">${selected.summary}</p>
+            </div>
+            <div class="cardline">
+              <strong>What matters</strong>
+              <ul>${selected.notes.map((item) => `<li>${item}</li>`).join("")}</ul>
+            </div>
+            <div class="cardline">
+              <strong>Key surface</strong>
+              <code>${selected.code}</code>
+            </div>
+          </div>
+        `;
+      }
+
+      const learningStepper = document.getElementById("learning-stepper");
+      const learningRail = document.getElementById("learning-rail");
+      const learningCallout = document.getElementById("learning-callout");
+      let learningIndex = 0;
+
+      function renderLearning() {
+        learningStepper.innerHTML = "";
+        learningRail.innerHTML = "";
+
+        learningStages.forEach((stage, index) => {
+          const stepButton = document.createElement("button");
+          stepButton.type = "button";
+          stepButton.className = index === learningIndex ? "active" : "";
+          stepButton.textContent = stage.label;
+          stepButton.addEventListener("click", () => {
+            learningIndex = index;
+            renderLearning();
+          });
+          learningStepper.appendChild(stepButton);
+
+          const stageCard = document.createElement("div");
+          stageCard.className = "learning-stage" + (index === learningIndex ? " active" : "");
+          stageCard.innerHTML = `<strong>${stage.label}</strong><div style="color: var(--ink-soft); line-height: 1.6;">${stage.title}</div>`;
+          learningRail.appendChild(stageCard);
+        });
+
+        const current = learningStages[learningIndex];
+        learningCallout.innerHTML = `
+          <small>Current stage</small>
+          <h3>${current.title}</h3>
+          <p>${current.copy}</p>
+          <code>${current.artifact}</code>
+        `;
+      }
+
+      renderDecision();
+      renderRoles();
+      renderPath();
+      renderLearning();
+    </script>
+  </body>
+</html>

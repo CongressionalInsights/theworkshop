@@ -165,7 +165,7 @@ def _ensure_project_defaults(project_root: Path, *, ts: str) -> None:
     doc = read_md(plan_path)
     changed = False
     if str(doc.frontmatter.get("monitor_open_policy") or "").strip() not in {"always", "once", "manual"}:
-        doc.frontmatter["monitor_open_policy"] = "always"
+        doc.frontmatter["monitor_open_policy"] = "once"
         changed = True
     if "monitor_session_id" not in doc.frontmatter:
         doc.frontmatter["monitor_session_id"] = ""
@@ -272,6 +272,18 @@ def _collect_cancel_targets(project_root: Path, entity: EntityRef) -> list[Entit
             wi = str(jdoc.frontmatter.get("work_item_id") or job_dir.name).strip()
             targets.append(EntityRef(kind="job", entity_id=wi, plan_path=job_dir / "plan.md"))
     return targets
+
+
+def _all_workstreams_terminal(project_root: Path) -> bool:
+    workstreams = list_workstream_dirs(project_root)
+    if not workstreams:
+        return False
+    for ws_dir in workstreams:
+        ws_doc = read_md(ws_dir / "plan.md")
+        ws_status = str(ws_doc.frontmatter.get("status") or "planned").strip()
+        if ws_status not in {"done", "cancelled"}:
+            return False
+    return True
 
 
 def _apply_transition(
@@ -469,14 +481,45 @@ def transition_entity(
                 },
             )
 
-    if start_monitor:
+    terminal_cleanup = False
+    if status in {"done", "cancelled"}:
+        if target.kind == "project":
+            terminal_cleanup = True
+        elif target.kind == "workstream" and _all_workstreams_terminal(project_root):
+            terminal_cleanup = True
+
+    if terminal_cleanup:
+        try:
+            stop_args = [
+                "stop",
+                "--project",
+                str(project_root),
+                "--terminal-status",
+                status,
+                "--reason",
+                reason,
+            ]
+            run_script("monitor_runtime.py", stop_args, check=True)
+        except Exception as exc:
+            _append_event(
+                project_root,
+                {
+                    "schema": "theworkshop.transition.v1",
+                    "event": "monitor_warning",
+                    "transition_id": transition_id,
+                    "timestamp": now_iso(),
+                    "actor": actor,
+                    "reason": f"monitor stop failed: {exc}",
+                    "entity_kind": target.kind,
+                    "entity_id": target.entity_id,
+                },
+            )
+    elif start_monitor:
         policy_args: list[str] = ["start", "--project", str(project_root)]
         if monitor_policy_override:
             policy_args += ["--policy", monitor_policy_override]
         if no_open:
             policy_args += ["--no-open"]
-        if status in {"done", "cancelled"}:
-            policy_args += ["--no-watch"]
         try:
             run_script("monitor_runtime.py", policy_args, check=True)
         except Exception as exc:

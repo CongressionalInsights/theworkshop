@@ -1,13 +1,19 @@
 ---
 name: theworkshop
-description: "Codex/Claude Code skill for non-coding work: optimized decomposition into Project->Workstreams->Jobs, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
+description: "Codex/Claude Code skill for mixed coding and non-coding work: optimized decomposition into Project->Workstreams->Jobs, repo-owned WORKFLOW.md execution contracts, success hooks with completion promises, living plan updates, lessons learned, mini dashboard, optional GitHub mirroring, and behavior-driving rewards."
 ---
 
 # TheWorkshop
 
-Use this skill in **Codex and Claude Code** to run non-coding projects in a structured, auditable, loopable way.
+Use this skill in **Codex and Claude Code** to run mixed coding and non-coding projects in a structured, auditable, loopable way.
 
 TheWorkshop is **operatorless**: the user does not run terminal commands. Codex executes scripts directly and only asks the user for **click-only** permissions when required (auth, keychain, etc.).
+
+This repository is the **public OSS baseline** for TheWorkshop.
+
+- It defines the public/local-framework contract and the optional adapters that ship in the repo.
+- It does **not** standardize private/custom operator workflows outside the repo.
+- Adapter-backed capabilities are optional unless the current command explicitly selects them.
 
 ## Core principles (non-negotiable)
 
@@ -23,13 +29,16 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **Terminal closure modes**: projects can close as `done` or `cancelled` (both first-class).
 - **Behavior-driving rewards**: jobs are not allowed to be marked `done` until reward targets are met.
 - **Single-writer dashboard projection**: `dashboard_projector.py` is the control-plane writer for dashboard artifacts.
-- **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it in a new browser window** (best-effort) so the user can follow along. The dashboard auto-refreshes every ~5s (pauseable).
+- **Mini dashboard**: keep `outputs/dashboard.html` up to date once execution begins, and **auto-open it once per session by default** (best-effort) so the user can follow along without repeated browser churn. The dashboard auto-refreshes every ~5s (pauseable).
   - Event/task logs are humanized by default for operator readability.
   - Full raw machine event payloads remain accessible from per-event details drawers.
+  - `monitor_runtime.py` is the lifecycle authority for dashboard open/watch/serve/stop/cleanup.
+  - Live dashboard opens reuse the existing local server URL when available instead of creating a new target per event.
   - `job_start.py --no-open` is runtime-only and does not persist `monitor_open_policy`.
   - To persist policy intentionally, pass `job_start.py --monitor-policy always|once|manual`.
   - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`
   - Opt-out (no background watcher): set `THEWORKSHOP_NO_MONITOR=1`
+  - Project terminal closeout prunes transient runtime artifacts while preserving canonical plans/logs/outputs.
 - **Strict completion defaults for new jobs**: execution evidence and linked lessons are required unless explicit exemption reasons are recorded in job frontmatter.
 - **Spend visibility**: dashboard/usage always include token telemetry and cost source metadata.
   - If CodexBar provides cost, treat as exact (`cost_source=codexbar_exact`, high confidence).
@@ -41,19 +50,36 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
   - Optional billing override for deterministic testing/ops: `THEWORKSHOP_BILLING_MODE=subscription_auth|metered_api|unknown`.
   - Optional per-project rate override: `notes/token-rates.override.json`.
   - Per-work-item spend is allocation-based from execution logs and is approximate (not invoice truth).
-- **Delegation policy**: when 2 or more independent runnable jobs exist and `subagent_policy != off`, delegation is required.
+- **Native subagents are the delegation runtime**: use Codex subagents as the default execution primitive for delegated work. Keep the main thread focused on planning, integration, decisions, and final synthesis.
+- **Delegation policy**: when 2 or more independent runnable jobs exist, `subagent_policy != off`, and the current prompt explicitly authorizes subagents or parallel agent work, delegation is required.
   - `THEWORKSHOP_SUBAGENT_POLICY`: override policy (`auto`, `on`, or `off`)
   - `THEWORKSHOP_MAX_PARALLEL_AGENTS`: cap concurrent delegated agents
   - `THEWORKSHOP_NO_SUBAGENTS=1`: hard-disable delegation for tests/headless runs
+  - Prefer subagents for read-heavy exploration, review, tests, triage, and disjoint-write implementation work.
+  - Do not parallelize overlapping write ownership. Split write-heavy work into disjoint scopes or keep it in the parent thread.
+  - Use built-in roles by default: `explorer` for read-heavy mapping, `worker` for bounded execution, `default`/reviewer-style agents for verification and synthesis.
 - **Dispatch execution control plane**: orchestration output is executable, not advisory.
-  - `dispatch_orchestration.py` consumes `outputs/orchestration.json`, starts runnable jobs, and emits dispatch telemetry.
+  - `dispatch_orchestration.py` consumes `outputs/orchestration.json`, decides which runnable jobs should become native subagent runs, and emits dispatch telemetry.
   - Canonical telemetry stream: `logs/agents.jsonl` (for both manual and dispatch delegation).
   - `logs/subagent-dispatch.jsonl` remains compatibility/diagnostic telemetry for dispatch engine traces.
-  - If delegation is done outside dispatch (for example direct tool-level subagents), emit lifecycle events with `agent_log.py` (`source=manual|external`) so dashboard subagent/dispatch panels stay truthful.
+- If delegation is done outside dispatch (for example direct native subagent spawning from the parent thread), emit lifecycle events with `theworkshop agent-log` (`source=manual|external`) so dashboard subagent/dispatch panels stay truthful.
+  - Manual/external runs should use `theworkshop agent-log` for non-terminal events and `theworkshop agent-closeout` exactly once for the terminal event plus staged learning promotion.
   - Dispatch summary: `outputs/orchestration-execution.json`
+- **Repo-owned execution contract**: each project root carries a `WORKFLOW.md` file that defines polling cadence, dispatch defaults, cycle hooks, and a shared execution-policy prompt for unattended runs.
+  - `workflow_check.py` validates and prints the effective contract.
+  - `workflow_runner.py` runs a Symphony-style local service loop over the on-disk project graph.
+- **Repo-scoped Codex agent config**: prefer project `.codex/config.toml` plus `.codex/agents/*.toml` files for portable workshop-specific agent behavior.
+  - Keep `references/agents/*.json` as planning metadata and dispatch defaults.
+  - The executable agent definitions live in `.codex/agents/`.
+- **Shared agent library**: keep small cross-repo reusable agents in `~/.codex/agents/*.toml`, and keep repo-specific behavior in project `.codex/agents/*.toml`.
+- **Curator-only durable writes**: active subagents may read durable memory, but durable memory and canonical lesson artifacts are promoted only through the parent thread or curator agents.
+- **Staged learning flow**:
+  - memory proposals: `.theworkshop/memory-proposals/*.json`
+  - lesson candidates: `.theworkshop/lessons-candidates/*.json`
+  - loop attempts may stage findings, but promotion happens only after terminal loop state
 - **Optional council planning mode**: run multi-planner synthesis before agreement lock.
-  - `council_plan.py` uses Gemini CLI planners by default.
-  - OpenAI planners are supported through `$apple-keychain` with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
+  - `council_plan.py` uses planner adapters; Gemini CLI is the default public adapter when available.
+  - OpenAI planners are supported through the optional `$apple-keychain` adapter with canonical keychain service `OPENAI_KEY` injected as `OPENAI_API_KEY`.
   - Council artifacts: `outputs/council/council-plan.json`, `outputs/council/final-plan.md`
 - **Schema hardening**: validate machine artifacts with shipped JSON schemas in `schemas/`.
   - `schema_validate.py` validates orchestration/truth/rewards/dashboard payloads.
@@ -61,7 +87,7 @@ TheWorkshop is **operatorless**: the user does not run terminal commands. Codex 
 - **Image generation first-class**: for image jobs, run `imagegen_job.py` so key retrieval, imagegen execution, output validation, and verification logging are consistent.
   - OSS-first API env: `THEWORKSHOP_IMAGEGEN_API_KEY` (preferred and cross-platform)
   - Compatibility env aliases: `OPENAI_API_KEY`, `OPENAI_KEY` (legacy, fallback only)
-  - Optional keychain mode for macOS via `$apple-keychain`: `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
+  - Optional keychain adapter for macOS via `$apple-keychain`: `THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE=keychain`
   - Opt-out (tests/headless): set `THEWORKSHOP_NO_KEYCHAIN=1`
   - Headless/no-GUI approval fallback: set `CODEX_KEYCHAIN_APPROVE=1` when keychain dialog cannot attach to a TTY/window.
 - **PDF truth test portability**: `scripts/truth_gate_pdf_test.py` discovers a local Chrome/Chromium binary (via `THEWORKSHOP_PDF_BROWSER`/`THEWORKSHOP_CHROME_PATH` or system PATH) and exits with `TRUTH GATE PDF TEST SKIPPED` on unsupported platforms.
@@ -90,6 +116,9 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 ```bash
 # Create a new project root
 {baseDir}/scripts/project_new.py --name "My Project"
+
+# Validate the generated execution contract
+{baseDir}/scripts/workflow_check.py --project /path/to/project
 
 # Add workstreams and jobs
 {baseDir}/scripts/workstream_add.py --project /path/to/project --title "Research"
@@ -137,7 +166,7 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/dashboard_monitor.py --project /path/to/project
 
 # Monitor runtime controls
-{baseDir}/scripts/monitor_runtime.py start --project /path/to/project --policy always
+{baseDir}/scripts/monitor_runtime.py start --project /path/to/project --policy once
 {baseDir}/scripts/monitor_runtime.py stop --project /path/to/project
 
 # Canonical transition engine
@@ -151,6 +180,10 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 {baseDir}/scripts/dispatch_orchestration.py --project /path/to/project
 {baseDir}/scripts/dispatch_orchestration.py --project /path/to/project --dry-run
 
+# Symphony-style local runner over WORKFLOW.md + project graph
+{baseDir}/scripts/workflow_runner.py --project /path/to/project --once
+{baseDir}/scripts/workflow_runner.py --project /path/to/project --detach
+
 # Optional council planning before agreement lock
 {baseDir}/scripts/council_plan.py --project /path/to/project --dry-run
 
@@ -160,12 +193,21 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Lessons operations
 {baseDir}/scripts/lessons_query.py --project /path/to/project --query "evidence attribution" --linked WI-... --include-global
 {baseDir}/scripts/lessons_apply.py --project /path/to/project --work-item-id WI-... --limit 5
+{baseDir}/scripts/lessons_candidate_capture.py --project /path/to/project --work-item-id WI-... --source-agent theworkshop_worker --tags verification --linked WI-... --context "..." --worked "..." --recommendation "..."
+{baseDir}/scripts/lessons_curate.py --project /path/to/project --work-item-id WI-... --write
+{baseDir}/scripts/memory_proposal_capture.py --project /path/to/project --work-item-id WI-... --source-agent theworkshop_worker --scope project --kind workflow --statement "..." --evidence "..." --promote-reason "..."
+{baseDir}/scripts/memory_curate.py --project /path/to/project --work-item-id WI-... --write
+
+# Manual/external delegated closeout
+theworkshop agent-log --project /path/to/project --event spawned --agent-id manual-a --work-item-id WI-... --status active --message "started delegated run" --source manual
+theworkshop agent-closeout --project /path/to/project --agent-id manual-a --work-item-id WI-... --status completed --source manual --runtime-agent-name theworkshop_worker --agent-profile theworkshop_worker
 
 # Run image generation for a WI
 {baseDir}/scripts/imagegen_job.py --project /path/to/project --work-item-id WI-...
 
 # Reliability preflight
-{baseDir}/scripts/doctor.py
+{baseDir}/scripts/doctor.py --profile codex
+{baseDir}/scripts/doctor.py --profile portable
 {baseDir}/scripts/health.py --project /path/to/project --repair
 
 # Quick ad-hoc lane (separate from workstream/job graph)
@@ -174,6 +216,21 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 # Usage snapshot (tokens + spend metadata)
 {baseDir}/scripts/usage_snapshot.py --project /path/to/project
 ```
+
+## Native subagent operating rules
+
+When using native Codex subagents with TheWorkshop:
+
+- Spawn only for bounded work with clear ownership, inputs, outputs, and acceptance criteria.
+- Continue useful parent-thread work after spawning; do not wait immediately unless the next critical-path step is blocked on a result.
+- Close completed agent threads after harvesting results.
+- Use repo-scoped custom agents from `.codex/agents/` when a workshop-specific role is available; otherwise fall back to built-in `explorer`, `worker`, or `default`.
+- Shared/global helpers may live in `~/.codex/agents/`, but repo-local workshop agents own repo-specific behavior.
+- Prefer concise subagent summaries over raw logs in the parent thread to limit context pollution.
+- Only use recursive/nested delegation when the current project config allows it and the extra coordination cost is justified.
+- Allow subagents to read durable memory as context, but do not let normal subagents edit durable memory or canonical lesson files directly.
+- Stage durable memory proposals and lesson candidates first; use curator agents or the parent thread to promote them later.
+- For manual or external delegation, use `agent-log` for spawned/progress/intermediate events and `agent-closeout` exactly once for the terminal event.
 
 ## User-facing response template (default)
 
@@ -186,6 +243,9 @@ These commands are for Codex's internal runbook/audit trail. Do not present them
 
 Read these first when operating the skill:
 - `references/workflow.md`
+- `references/memory.md`
 - `references/prompting.md`
 - `references/templates.md`
 - `references/rewards.md`
+- `.codex/config.toml`
+- `.codex/agents/*.toml`

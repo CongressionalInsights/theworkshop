@@ -7,13 +7,30 @@
 - [ ] Confirm runtime artifacts are ignored and untracked:
   - `PJ-*`, `_test_runs/`, root `outputs/`, `logs/`, `tmp/`, `artifacts/`, `notes/`
 - [ ] Confirm architecture image exists at `docs/assets/theworkshop-systems-architecture.png`
+- [ ] Confirm docs asset generation path works:
+  - `python3 scripts/generate_docs_assets.py --dry-run`
+  - `docs/assets/prompts.jsonl`
 - [ ] CI workflow present and active: `.github/workflows/ci.yml`
 
 ## 2. Documentation Truth (Feature-Pack PR)
 
 - [ ] `README.md` reflects current behavior and install/update path
 - [ ] `SKILL.md` matches runtime/operator contract
+- [ ] Docs clearly distinguish the **public OSS baseline** from private/custom local workflows
+- [ ] Docs consistently describe optional adapters vs core workflow behavior
 - [ ] Gate semantics are consistent across docs (agreement/dependency+freshness/truth/reward)
+- [ ] Agent surface docs are consistent:
+  - shared cross-repo agents in `~/.codex/agents/*.toml`
+  - canonical runtime agents in `.codex/agents/*.toml`
+  - canonical runtime limits in `.codex/config.toml`
+  - canonical planning metadata in `references/agents/*.json`
+  - canonical job-local selector is `agent_profile`
+  - `agent_type_hint` appears only as historical migration data
+- [ ] Learning-promotion semantics are consistent across docs:
+  - staged memory proposals in `.theworkshop/memory-proposals/*.json`
+  - staged lesson candidates in `.theworkshop/lessons-candidates/*.json`
+  - only parent/curator paths promote durable memory and canonical lessons
+  - loop runs promote staged learning only after terminal state
 - [ ] Telemetry semantics are consistent across docs:
   - canonical subagent telemetry in `logs/agents.jsonl`
   - compatibility dispatch telemetry in `logs/subagent-dispatch.jsonl`
@@ -32,6 +49,8 @@ python3 scripts/truth_gate_pdf_test.py
 python3 scripts/stale_invalidation_test.py
 python3 scripts/orchestrate_plan_test.py
 python3 scripts/dispatch_orchestration_test.py
+python3 scripts/resolve_agent_profile_test.py
+python3 scripts/normalize_agent_profiles_test.py
 python3 scripts/dispatch_monitor_policy_test.py
 python3 scripts/council_plan_test.py
 python3 scripts/dashboard_ui_interaction_test.py
@@ -42,8 +61,12 @@ python3 scripts/dashboard_subscription_cost_display_test.py
 python3 scripts/imagegen_job_test.py
 python3 scripts/imagegen_keychain_retry_test.py
 python3 scripts/doctor_test.py
+python3 scripts/council_plan_adapter_boundary_test.py
+python3 scripts/oss_packaging_docs_test.py
 python3 scripts/job_profile_test.py
 python3 scripts/lessons_apply_test.py
+python3 scripts/learning_curate_test.py
+python3 scripts/loop_job_test.py
 python3 scripts/plan_check_content_quality_test.py
 python3 scripts/smoke_test.py
 python3 scripts/sample_scenario_test.py
@@ -84,6 +107,8 @@ gh label create "docs" --color 0075CA --description "Documentation" || true
 ## 6. Post-Release Health
 
 - [ ] `README` release badge resolves latest tag
+- [ ] `python3 scripts/doctor.py --profile codex` passes in the intended Codex release environment
+- [ ] `python3 scripts/doctor.py --profile portable` passes in the portable/core public baseline environment
 - [ ] Issue templates and PR template render correctly
 - [ ] Pinned discussion / known limitations issue updated for current release
 - [ ] `Unreleased` section in `CHANGELOG.md` reset for next cycle

@@ -29,6 +29,7 @@ def main() -> None:
     parser.add_argument("--dispatch-run-id", default="", help="Dispatch run identifier (optional)")
     parser.add_argument("--group-index", default="", help="Dispatch group index (optional)")
     parser.add_argument("--timestamp", default="", help="Override timestamp (ISO-8601; default now)")
+    parser.add_argument("--meta-json", default="", help="Optional JSON object merged into the event payload")
     parser.add_argument("--out", help="Log file path (default: logs/agents.jsonl)")
     parser.add_argument("--no-dashboard", action="store_true", help="Skip best-effort dashboard rebuild")
     args = parser.parse_args()
@@ -52,6 +53,14 @@ def main() -> None:
         "dispatch_run_id": args.dispatch_run_id.strip(),
         "group_index": args.group_index.strip(),
     }
+    if args.meta_json.strip():
+        try:
+            meta_payload = json.loads(args.meta_json)
+        except Exception as exc:
+            raise SystemExit(f"--meta-json must be a JSON object: {exc}")
+        if not isinstance(meta_payload, dict):
+            raise SystemExit("--meta-json must be a JSON object")
+        payload.update(meta_payload)
 
     with out_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(payload, separators=(",", ":")) + "\n")

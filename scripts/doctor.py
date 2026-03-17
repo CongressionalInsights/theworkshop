@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
-from pathlib import Path
 
+from runtime_profile import (
+    command_available,
+    resolve_doctor_profile,
+    session_logs_exist,
+    skill_script_path,
+)
 from twlib import codex_home, codex_session_token_snapshot
 
 from imagegen_job import (
@@ -30,19 +34,14 @@ def session_id() -> str:
     return ""
 
 
-def session_logs_exist(sid: str, root: Path) -> bool:
-    if not sid:
-        return False
-    sessions = root / "sessions"
-    if not sessions.exists():
-        return False
-    try:
-        return any(sid in p.name for p in sessions.rglob("rollout-*.jsonl"))
-    except Exception:
-        return False
+def selected_imagegen_provider() -> str:
+    requested = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE).lower() or CANONICAL_IMAGEGEN_PROVIDER_DEFAULT
+    if requested in {"env", "keychain"}:
+        return requested
+    return ""
 
 
-def image_credential_ok() -> tuple[bool, str]:
+def image_credential_status(*, strict: bool) -> tuple[bool, str]:
     no_keychain = _env_value(THEWORKSHOP_NO_KEYCHAIN) == "1"
     requested_provider = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE) or CANONICAL_IMAGEGEN_PROVIDER_DEFAULT
     try:
@@ -53,66 +52,109 @@ def image_credential_ok() -> tuple[bool, str]:
         )
         return True, resolution.source
     except SystemExit as exc:
-        return False, str(exc)
+        detail = str(exc)
+        if strict:
+            return False, detail
+        return True, detail
+
+
+def print_status(level: str, label: str, detail: str) -> None:
+    print(f"[{level}] {label}: {detail}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Preflight checks for TheWorkshop one-pass reliability.")
-    parser.parse_args()
+    parser = argparse.ArgumentParser(description="Preflight checks for TheWorkshop public OSS baseline and Codex profile.")
+    parser.add_argument("--profile", choices=["codex", "portable"], default="codex")
+    args = parser.parse_args()
 
+    profile = resolve_doctor_profile(args.profile)
     failures: list[str] = []
+    warnings: list[str] = []
     notes: list[str] = []
     ch = codex_home()
 
-    uv_ok = bool(shutil.which("uv"))
-    print(f"[{'OK' if uv_ok else 'FAIL'}] uv available")
+    print_status("OK", "profile", profile)
+    notes.append(
+        "public OSS baseline only; private/custom operator behavior remains outside the repo contract"
+    )
+
+    imagegen_mode = selected_imagegen_provider()
+    imagegen_strict = bool(imagegen_mode)
+
+    uv_ok = command_available("uv")
+    uv_level = "OK" if uv_ok else "FAIL" if imagegen_strict else "WARN"
+    print_status(uv_level, "uv", "available" if uv_ok else "missing")
     if not uv_ok:
-        failures.append("Install `uv` so imagegen jobs can run with managed dependencies.")
+        msg = "Install `uv` for the optional imagegen/OpenAI adapter path."
+        (failures if imagegen_strict else warnings).append(msg)
 
-    imagegen_cli = ch / "skills" / "imagegen" / "scripts" / "image_gen.py"
+    imagegen_cli = skill_script_path("imagegen", "scripts/image_gen.py")
     imagegen_ok = imagegen_cli.exists()
-    print(f"[{'OK' if imagegen_ok else 'FAIL'}] imagegen skill: {imagegen_cli}")
+    imagegen_level = "OK" if imagegen_ok else "FAIL" if imagegen_strict else "WARN"
+    print_status(imagegen_level, "imagegen adapter", str(imagegen_cli))
     if not imagegen_ok:
-        failures.append("Install the `imagegen` skill under $CODEX_HOME/skills/imagegen.")
+        msg = "Optional adapter missing: install the `imagegen` skill under $CODEX_HOME/skills/imagegen."
+        (failures if imagegen_strict else warnings).append(msg)
 
-    cred_ok, cred_detail = image_credential_ok()
-    if cred_ok:
-        print(f"[OK] image credentials: {cred_detail}")
-    else:
-        print(f"[FAIL] image credentials: {cred_detail}")
+    cred_ok, cred_detail = image_credential_status(strict=imagegen_strict)
+    cred_configured = cred_detail.startswith(("env:", "keychain:"))
+    cred_level = "OK" if cred_ok and cred_configured else "WARN" if cred_ok else "FAIL"
+    print_status(cred_level, "image credentials", cred_detail)
+    if not cred_ok:
         failures.append(
-            f"Set {THEWORKSHOP_IMAGEGEN_API_KEY} (recommended) for non-Apple environments. "
-            f"Optionally install apple-keychain and set service credentials for `keychain` mode."
+            f"Set {THEWORKSHOP_IMAGEGEN_API_KEY} (recommended) or switch the selected imagegen adapter mode."
         )
+    elif not imagegen_strict and not cred_configured:
+        warnings.append(f"imagegen adapter not configured: {cred_detail}")
 
-    # Show keychain path status only when meaningful.
-    if cred_ok and cred_detail.startswith("keychain:"):
-        selected_provider = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE).lower() or "auto"
-        keychain_runner = resolve_keychain_runner(os.environ)
-        keychain_runner_ok = keychain_runner.exists()
-        print(
-            f"[{'OK' if keychain_runner_ok else 'FAIL'}] apple-keychain skill: {keychain_runner}"
+    selected_provider = _env_value(THEWORKSHOP_IMAGEGEN_CREDENTIAL_SOURCE).lower() or "auto"
+    keychain_runner = resolve_keychain_runner(os.environ)
+    keychain_runner_ok = keychain_runner.exists()
+    keychain_required = selected_provider == "keychain"
+    keychain_level = "OK" if keychain_runner_ok else "FAIL" if keychain_required else "WARN"
+    detail = str(keychain_runner) if keychain_required or keychain_runner_ok else "not selected"
+    print_status(keychain_level, "apple-keychain adapter", detail)
+    if not keychain_runner_ok and keychain_required:
+        failures.append(
+            "Selected adapter requires `apple-keychain`; install it under $CODEX_HOME/skills/apple-keychain."
         )
-        if not keychain_runner_ok and selected_provider == "keychain":
-            failures.append(
-                "Install the `apple-keychain` skill under $CODEX_HOME/skills/apple-keychain "
-                "or switch image credentials to env mode."
-            )
-    elif cred_ok:
-        print("[OK] apple-keychain skill: not selected")
+    elif not keychain_runner_ok:
+        warnings.append("apple-keychain adapter not installed (optional).")
+
+    gemini_ok = command_available("gemini")
+    print_status("OK" if gemini_ok else "WARN", "gemini adapter", "available" if gemini_ok else "missing")
+    if not gemini_ok:
+        warnings.append("Gemini planner adapter not installed or not on PATH (optional).")
+
+    gh_ok = command_available("gh")
+    print_status("OK" if gh_ok else "WARN", "github adapter", "available" if gh_ok else "missing")
+    if not gh_ok:
+        warnings.append("GitHub adapter (`gh`) not installed (optional).")
+
+    codexbar_ok = command_available("codexbar")
+    print_status("OK" if codexbar_ok else "WARN", "codexbar adapter", "available" if codexbar_ok else "missing")
+    if not codexbar_ok:
+        warnings.append("Exact CodexBar billing adapter not installed; spend falls back to session-log heuristics when available.")
 
     sid = session_id()
     logs_ok = session_logs_exist(sid, ch)
     snap = codex_session_token_snapshot("codex")
     snap_ok = bool(snap)
-    print(f"[{'OK' if logs_ok else 'FAIL'}] session logs for current thread id: {sid or '(missing)'}")
-    print(f"[{'OK' if snap_ok else 'FAIL'}] token snapshot parseable from session logs")
-    if not sid:
-        failures.append("Current shell does not expose CODEX_THREAD_ID/SESSION_ID; launch inside Codex Desktop session.")
-    elif not logs_ok:
-        failures.append("No matching rollout JSONL found under $CODEX_HOME/sessions for current thread id.")
-    elif not snap_ok:
-        failures.append("Session log found but no token_count entries were parseable.")
+    telemetry_required = profile == "codex"
+    logs_level = "OK" if logs_ok else "FAIL" if telemetry_required else "WARN"
+    snap_level = "OK" if snap_ok else "FAIL" if telemetry_required else "WARN"
+    print_status(logs_level, "codex session logs", sid or "(missing)")
+    print_status(snap_level, "codex token snapshot", "parseable" if snap_ok else "unavailable")
+    if telemetry_required:
+        if not sid:
+            failures.append("Codex profile requires CODEX_THREAD_ID/SESSION_ID from a Codex Desktop session.")
+        elif not logs_ok:
+            failures.append("Codex profile requires matching rollout JSONL under $CODEX_HOME/sessions.")
+        elif not snap_ok:
+            failures.append("Codex profile found session logs but no parseable token_count telemetry.")
+    else:
+        if not sid or not logs_ok or not snap_ok:
+            warnings.append("Codex telemetry adapter unavailable; portable profile treats this as optional.")
     if snap and snap.get("sessionLogPath"):
         notes.append(f"token snapshot source: {snap.get('source')} ({snap.get('sessionLogPath')})")
 
@@ -121,11 +163,15 @@ def main() -> None:
         print("DOCTOR: FAIL")
         for f in failures:
             print(f"- {f}")
+        for w in warnings:
+            print(f"- warning: {w}")
         for n in notes:
             print(f"- note: {n}")
         raise SystemExit(1)
 
     print("DOCTOR: OK")
+    for w in warnings:
+        print(f"- warning: {w}")
     for n in notes:
         print(f"- note: {n}")
 

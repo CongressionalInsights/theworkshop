@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import dashboard_build
+import monitor_runtime
 from twlib import now_iso, read_md, resolve_project_root
 
 
@@ -56,37 +57,23 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def _monitor_state(project_root: Path) -> dict[str, Any]:
-    state_path = project_root / "tmp" / "monitor-runtime.json"
-    pid_path = project_root / "tmp" / "dashboard-watch.json"
-
-    state = _load_json(state_path)
-    pid_state = _load_json(pid_path)
-    pid = int(pid_state.get("pid") or state.get("watch_pid") or 0)
-    alive = False
-    if pid > 1:
-        try:
-            os.kill(pid, 0)
-            alive = True
-        except Exception:
-            alive = False
-
-    if not state:
+    try:
+        return monitor_runtime.monitor_status(project_root)
+    except Exception:
         proj = read_md(project_root / "plan.md")
-        policy = str(proj.frontmatter.get("monitor_open_policy") or "always").strip()
-        state = {
-            "schema": "theworkshop.monitor-runtime.v1",
+        policy = str(proj.frontmatter.get("monitor_open_policy") or "once").strip()
+        return {
+            "schema": "theworkshop.monitor-runtime.v2",
             "status": "unknown",
-            "policy": policy if policy in {"always", "once", "manual"} else "always",
-            "watch_pid": pid,
-            "watch_alive": alive,
+            "policy": policy if policy in {"always", "once", "manual"} else "once",
+            "watch_pid": 0,
+            "watch_alive": False,
+            "server_pid": 0,
+            "server_alive": False,
+            "server_url": "",
             "updated_at": "",
-            "source": "derived",
+            "source": "dashboard_projector.fallback",
         }
-    else:
-        state = dict(state)
-        state["watch_pid"] = pid
-        state["watch_alive"] = alive
-    return state
 
 
 def _collect_projection_warnings(project_root: Path, monitor_state: dict[str, Any]) -> list[str]:

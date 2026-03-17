@@ -76,6 +76,17 @@ def main() -> None:
             if payload.get("schema") != "theworkshop.dashboard.v1":
                 raise RuntimeError("Unexpected dashboard payload schema")
 
+            with urllib.request.urlopen(url + "events", timeout=5) as resp:
+                data_line = resp.readline().decode("utf-8", errors="ignore").strip()
+            if not data_line.startswith("data: "):
+                raise RuntimeError(f"Expected first SSE line to start with data:, got {data_line!r}")
+            event_payload = json.loads(data_line[len("data: ") :])
+            if str(event_payload.get("generated_at") or "") != str(payload.get("generated_at") or ""):
+                raise RuntimeError(f"Expected SSE generated_at to match dashboard payload: {event_payload}")
+            for key in ("project_status", "monitor_status"):
+                if key not in event_payload:
+                    raise RuntimeError(f"Expected SSE payload to include {key!r}: {event_payload}")
+
         finally:
             proc.terminate()
             try:

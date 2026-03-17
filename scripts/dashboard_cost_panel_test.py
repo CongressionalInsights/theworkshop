@@ -29,7 +29,7 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
     sessions_dir.mkdir(parents=True, exist_ok=True)
     log_path = sessions_dir / f"rollout-2026-02-16T10-00-00-{session_id}.jsonl"
     lines = [
-        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.3-codex"}},
+        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.4"}},
         {
             "timestamp": "2026-02-16T10:00:03.000Z",
             "type": "event_msg",
@@ -47,8 +47,8 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
                     "model_context_window": 258400,
                 },
                 "rate_limits": {
-                    "limit_id": "codex_bengalfox",
-                    "limit_name": "GPT-5.3-Codex-Spark",
+                    "limit_id": "codex",
+                    "limit_name": "GPT-5.4",
                     "plan_type": "pro",
                     "credits": {"has_credits": False, "unlimited": False, "balance": None},
                 },
@@ -133,17 +133,22 @@ Test dashboard token/cost panels.
         raise RuntimeError(f"Expected billed_session_cost_usd=0.0, got {billed_session!r}")
     if float(tokens.get("estimated_project_cost_usd") or 0.0) <= 0.0:
         raise RuntimeError(f"Expected estimated_project_cost_usd > 0, got {tokens.get('estimated_project_cost_usd')!r}")
+    if str(tokens.get("display_cost_primary_label") or "") != "Billed cost (Codex auth/subscription)":
+        raise RuntimeError(f"Unexpected display_cost_primary_label: {tokens.get('display_cost_primary_label')!r}")
+    if str(tokens.get("display_cost_secondary_label") or "") != "API-equivalent estimate (non-billed)":
+        raise RuntimeError(f"Unexpected display_cost_secondary_label: {tokens.get('display_cost_secondary_label')!r}")
+    if str(tokens.get("rate_model_key") or "") != "gpt-5.4":
+        raise RuntimeError(f"Expected rate_model_key=gpt-5.4, got {tokens.get('rate_model_key')!r}")
     by_wi = tokens.get("by_work_item") or []
     if not by_wi:
         raise RuntimeError("Expected by_work_item entries in dashboard tokens payload")
 
     html = (project_root / "outputs" / "dashboard.html").read_text(encoding="utf-8", errors="ignore")
     for marker in (
-        "Session Cost",
-        "Project Cost (Delta)",
         "API-Equivalent Spend By Work Item (Estimated)",
-        "$0.0000 billed",
-        "plan: Codex auth/subscription",
+        "token source codex auth session logs · billed session $0.0000",
+        "codex session logs rateLimitId=codex",
+        "matched detectedModel=gpt-5.4",
         "WI-001",
     ):
         if marker not in html:
@@ -158,9 +163,15 @@ Test dashboard token/cost panels.
     tokens_metered = payload_metered.get("tokens") or {}
     if str(tokens_metered.get("billing_mode") or "") != "metered_api":
         raise RuntimeError(f"Expected metered override, got {tokens_metered.get('billing_mode')!r}")
+    if float(tokens_metered.get("billed_session_cost_usd") or 0.0) <= 0.0:
+        raise RuntimeError(f"Expected billed_session_cost_usd > 0 under metered mode, got {tokens_metered.get('billed_session_cost_usd')!r}")
+    if str(tokens_metered.get("display_cost_primary_label") or "") != "Billed cost (metered API)":
+        raise RuntimeError(f"Unexpected metered display_cost_primary_label: {tokens_metered.get('display_cost_primary_label')!r}")
+    if str(tokens_metered.get("display_cost_secondary_label") or "") != "API-equivalent estimate":
+        raise RuntimeError(f"Unexpected metered display_cost_secondary_label: {tokens_metered.get('display_cost_secondary_label')!r}")
 
     html_metered = (project_root / "outputs" / "dashboard.html").read_text(encoding="utf-8", errors="ignore")
-    for marker in ("Spend By Work Item (Estimated)", "plan: metered API", "WI-001"):
+    for marker in ("Spend By Work Item (Estimated)", "matched detectedModel=gpt-5.4", "WI-001"):
         if marker not in html_metered:
             raise RuntimeError(f"Expected metered dashboard.html to contain {marker!r}")
 

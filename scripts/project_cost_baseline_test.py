@@ -22,7 +22,7 @@ def make_snapshot(session_id: str, total_tokens: int) -> dict:
             "reasoning_output_tokens": int(total_tokens * 0.05),
             "total_tokens": total_tokens,
         },
-        "detectedModel": "gpt-5.3-codex",
+        "detectedModel": "gpt-5.4",
     }
 
 

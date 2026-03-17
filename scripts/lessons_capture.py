@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from twlib import codex_home, ensure_dir, next_id, now_iso, read_md, resolve_project_root, today_yyyymmdd
+from twlib import codex_home, ensure_dir, next_id, now_iso, resolve_project_root, today_yyyymmdd
 
 
 LESSON_ID_RE = re.compile(r"^##\s+(LL-[0-9]{8}-[0-9]{3})\b")
@@ -88,6 +88,76 @@ def rebuild_index(lessons_md: Path, index_path: Path) -> None:
     index_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def capture_lesson(
+    project_root: Path,
+    *,
+    tags: list[str],
+    linked: list[str],
+    context: str,
+    worked: str,
+    failed: str,
+    recommendation: str,
+    also_global: bool = False,
+) -> dict[str, str]:
+    notes_dir = project_root / "notes"
+    ensure_dir(notes_dir)
+
+    lessons_md = notes_dir / "lessons-learned.md"
+    if not lessons_md.exists():
+        lessons_md.write_text("# Lessons Learned\n\n", encoding="utf-8")
+    text = lessons_md.read_text(encoding="utf-8", errors="ignore")
+
+    date = today_yyyymmdd()
+    lid = next_id("LL", date, existing_lesson_ids(text, date))
+    ts = now_iso()
+
+    block = "\n".join(
+        [
+            f"## {lid}",
+            f"- Applies to: {', '.join(tags)}",
+            f"- Linked: {', '.join(linked)}",
+            f"- Captured at: {ts}",
+            "",
+            f"**Context:** {context.strip()}",
+            "",
+            f"**What worked:** {worked.strip()}",
+            "",
+            f"**What failed:** {failed.strip()}",
+            "",
+            f"**Recommendation:** {recommendation.strip()}",
+            "",
+        ]
+    )
+
+    lessons_md.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
+
+    index_path = notes_dir / "lessons-index.json"
+    rebuild_index(lessons_md, index_path)
+
+    if also_global:
+        global_path = codex_home() / "skills" / "theworkshop" / "state" / "global-lessons.jsonl"
+        ensure_dir(global_path.parent)
+        entry = {
+            "schema": "theworkshop.lessons.v1",
+            "id": lid,
+            "tags": tags,
+            "linked": linked,
+            "captured_at": ts,
+            "context": context.strip(),
+            "worked": worked.strip(),
+            "failed": failed.strip(),
+            "recommendation": recommendation.strip(),
+        }
+        with global_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry) + "\n")
+
+    return {
+        "lesson_id": lid,
+        "lessons_path": str(lessons_md),
+        "index_path": str(index_path),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Append a lesson learned and rebuild index.")
     parser.add_argument("--project", help="Project root (defaults to nearest parent with plan.md)")
@@ -101,62 +171,19 @@ def main() -> None:
     args = parser.parse_args()
 
     project_root = resolve_project_root(args.project)
-    notes_dir = project_root / "notes"
-    ensure_dir(notes_dir)
-
-    lessons_md = notes_dir / "lessons-learned.md"
-    if not lessons_md.exists():
-        lessons_md.write_text("# Lessons Learned\n\n", encoding="utf-8")
-    text = lessons_md.read_text(encoding="utf-8", errors="ignore")
-
-    date = today_yyyymmdd()
-    lid = next_id("LL", date, existing_lesson_ids(text, date))
-    ts = now_iso()
-
     tags = [t.strip() for t in args.tags.split(",") if t.strip()]
     linked = [t.strip() for t in args.linked.split(",") if t.strip()]
-
-    block = "\n".join(
-        [
-            f"## {lid}",
-            f"- Applies to: {', '.join(tags)}",
-            f"- Linked: {', '.join(linked)}",
-            f"- Captured at: {ts}",
-            "",
-            f"**Context:** {args.context.strip()}",
-            "",
-            f"**What worked:** {args.worked.strip()}",
-            "",
-            f"**What failed:** {args.failed.strip()}",
-            "",
-            f"**Recommendation:** {args.recommendation.strip()}",
-            "",
-        ]
+    result = capture_lesson(
+        project_root,
+        tags=tags,
+        linked=linked,
+        context=args.context,
+        worked=args.worked,
+        failed=args.failed,
+        recommendation=args.recommendation,
+        also_global=bool(args.also_global),
     )
-
-    lessons_md.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
-
-    index_path = notes_dir / "lessons-index.json"
-    rebuild_index(lessons_md, index_path)
-
-    if args.also_global:
-        global_path = codex_home() / "skills" / "theworkshop" / "state" / "global-lessons.jsonl"
-        ensure_dir(global_path.parent)
-        entry = {
-            "schema": "theworkshop.lessons.v1",
-            "id": lid,
-            "tags": tags,
-            "linked": linked,
-            "captured_at": ts,
-            "context": args.context.strip(),
-            "worked": args.worked.strip(),
-            "failed": args.failed.strip(),
-            "recommendation": args.recommendation.strip(),
-        }
-        with global_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry) + "\n")
-
-    print(str(lessons_md))
+    print(result["lessons_path"])
 
 
 if __name__ == "__main__":

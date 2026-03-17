@@ -12,28 +12,41 @@ from twlib import resolve_rate_model  # noqa: E402
 
 def main() -> None:
     rates = {
-        "fallback_model": "gpt-5.3-codex",
+        "fallback_model": "gpt-5.4",
         "models": {
+            "gpt-5.4": {"usd_per_1m": {"input": 2.5, "cached_input": 0.25, "output": 15.0}},
             "gpt-5.3-codex": {"usd_per_1m": {"input": 1.5, "cached_input": 0.15, "output": 8.0}},
             "gpt-5.3-codex-spark": {"usd_per_1m": {"input": 1.25, "cached_input": 0.125, "output": 6.0}},
         },
         "aliases": {
+            "codex": "gpt-5.4",
             "codex_bengalfox": "gpt-5.3-codex-spark",
             "gpt-5.3-codex spark": "gpt-5.3-codex-spark",
         },
     }
 
-    m1, reason1, c1 = resolve_rate_model({"detectedModel": "gpt-5.3-codex"}, rates)
-    if m1 != "gpt-5.3-codex" or c1 != "medium":
+    m1, reason1, c1 = resolve_rate_model({"detectedModel": "gpt-5.4"}, rates)
+    if m1 != "gpt-5.4" or c1 != "medium":
         raise RuntimeError(f"Expected direct model match, got model={m1!r} confidence={c1!r} reason={reason1!r}")
 
     m2, reason2, c2 = resolve_rate_model({"rateLimitId": "codex_bengalfox"}, rates)
     if m2 != "gpt-5.3-codex-spark" or c2 != "medium":
         raise RuntimeError(f"Expected alias model match, got model={m2!r} confidence={c2!r} reason={reason2!r}")
 
-    m3, reason3, c3 = resolve_rate_model({"detectedModel": "unknown-model"}, rates)
-    if m3 != "gpt-5.3-codex" or c3 != "low":
-        raise RuntimeError(f"Expected fallback model match, got model={m3!r} confidence={c3!r} reason={reason3!r}")
+    m3, reason3, c3 = resolve_rate_model({"rateLimitId": "codex"}, rates)
+    if m3 != "gpt-5.4" or c3 != "medium":
+        raise RuntimeError(f"Expected codex alias match, got model={m3!r} confidence={c3!r} reason={reason3!r}")
+
+    m4, reason4, c4 = resolve_rate_model({"detectedModel": "gpt-5.3-codex"}, rates)
+    if m4 != "gpt-5.3-codex" or c4 != "medium":
+        raise RuntimeError(f"Expected legacy direct model match, got model={m4!r} confidence={c4!r} reason={reason4!r}")
+
+    m5, reason5, c5 = resolve_rate_model({"detectedModel": "unknown-model"}, rates)
+    if m5 != "gpt-5.4" or c5 != "low":
+        raise RuntimeError(f"Expected fallback model match, got model={m5!r} confidence={c5!r} reason={reason5!r}")
+
+    if any("gpt-5.4" not in reason for reason in (reason1, reason3, reason5)):
+        raise RuntimeError(f"Expected current-model reasons to mention gpt-5.4, got {reason1!r}, {reason3!r}, {reason5!r}")
 
     print("TOKEN MODEL RESOLUTION TEST PASSED")
 

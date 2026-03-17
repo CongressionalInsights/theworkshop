@@ -29,7 +29,7 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
     sessions_dir.mkdir(parents=True, exist_ok=True)
     log_path = sessions_dir / f"rollout-2026-02-16T10-00-00-{session_id}.jsonl"
     lines = [
-        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.3-codex"}},
+        {"timestamp": "2026-02-16T10:00:00.000Z", "type": "turn_context", "payload": {"model": "gpt-5.4"}},
         {
             "timestamp": "2026-02-16T10:00:03.000Z",
             "type": "event_msg",
@@ -47,8 +47,8 @@ def write_session_log(codex_home: Path, session_id: str, total_tokens: int) -> P
                     "model_context_window": 258400,
                 },
                 "rate_limits": {
-                    "limit_id": "codex_bengalfox",
-                    "limit_name": "GPT-5.3-Codex-Spark",
+                    "limit_id": "codex",
+                    "limit_name": "GPT-5.4",
                     "plan_type": "pro",
                     "credits": {"has_credits": False, "unlimited": False, "balance": None},
                 },
@@ -134,14 +134,19 @@ Validate subscription billing display semantics.
         raise RuntimeError(f"Expected billed_project_cost_usd=0.0, got {billed_project!r}")
     if float(tokens.get("api_equivalent_session_cost_usd") or 0.0) <= 0.0:
         raise RuntimeError("Expected api_equivalent_session_cost_usd > 0")
+    if str(tokens.get("display_cost_primary_label") or "") != "Billed cost (Codex auth/subscription)":
+        raise RuntimeError(f"Unexpected display_cost_primary_label: {tokens.get('display_cost_primary_label')!r}")
+    if str(tokens.get("display_cost_secondary_label") or "") != "API-equivalent estimate (non-billed)":
+        raise RuntimeError(f"Unexpected display_cost_secondary_label: {tokens.get('display_cost_secondary_label')!r}")
+    if str(tokens.get("rate_model_key") or "") != "gpt-5.4":
+        raise RuntimeError(f"Expected rate_model_key=gpt-5.4, got {tokens.get('rate_model_key')!r}")
 
     html = (project_root / "outputs" / "dashboard.html").read_text(encoding="utf-8", errors="ignore")
     for marker in (
-        "$0.0000 billed",
-        "API-equivalent:",
-        "plan: Codex auth/subscription",
+        "token source codex auth session logs · billed session $0.0000",
         "API-Equivalent Spend By Work Item (Estimated)",
         "codex auth session logs",
+        "matched detectedModel=gpt-5.4",
     ):
         if marker not in html:
             raise RuntimeError(f"Expected dashboard.html to contain {marker!r}")

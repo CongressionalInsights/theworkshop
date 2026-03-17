@@ -604,18 +604,18 @@ def load_token_rates(project_root: Path) -> dict[str, Any]:
             "version": 1,
             "updated_at": "",
             "default_currency": "USD",
-            "fallback_model": "gpt-5.3-codex",
+            "fallback_model": "gpt-5.4",
             "models": {
-                "gpt-5.3-codex": {
+                "gpt-5.4": {
                     "usd_per_1m": {
-                        "input": 1.5,
-                        "cached_input": 0.15,
-                        "output": 8.0,
-                        "reasoning_output": 8.0,
+                        "input": 2.5,
+                        "cached_input": 0.25,
+                        "output": 15.0,
+                        "reasoning_output": 15.0,
                     }
                 }
             },
-            "aliases": {},
+            "aliases": {"codex": "gpt-5.4"},
         }
 
     override_path = project_root / "notes" / "token-rates.override.json"

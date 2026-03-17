@@ -171,9 +171,12 @@ def main() -> None:
         except Exception:
             pass
 
-    if not args.no_open:
+    if not args.no_dashboard:
         try:
-            run_script("dashboard_open.py", ["--project", str(project_root), "--once"])
+            rt_args = ["start", "--project", str(project_root), "--no-watch"]
+            if args.no_open:
+                rt_args.append("--no-open")
+            run_script("monitor_runtime.py", rt_args)
         except Exception:
             pass
 

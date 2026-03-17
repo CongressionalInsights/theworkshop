@@ -2,10 +2,63 @@
 
 ## Overview
 
+This repo is the **public OSS baseline** for TheWorkshop.
+
+- The public contract covers the portable local framework plus optional adapters.
+- Private/custom operator overlays are separate and are not standardized here.
+- Adapter-backed capabilities should fail only when explicitly selected.
+
 TheWorkshop runs in two stages:
 
 1. **Plan (agree first)**: intake -> decomposition -> optimization -> success hooks -> explicit agreement.
 2. **Execute (loopable)**: run jobs sequentially (or in safe parallel) with reward gating and continuous plan updates.
+
+## Repo-owned `WORKFLOW.md` contract
+
+Each TheWorkshop project root now includes a `WORKFLOW.md` file. It is the local execution contract
+for unattended runs and plays the same role that repo-owned workflow files play in service-style
+orchestrators:
+
+- frontmatter defines runtime defaults:
+  - `work_source.kind` (currently `local_project`)
+  - `polling.interval_sec`
+  - `orchestration.auto_refresh`
+  - `validation.require_agreement`
+  - `validation.run_plan_check`
+  - `dispatch.runner`, `dispatch.max_parallel`, `dispatch.timeout_sec`
+  - `dispatch.continue_on_error`, `dispatch.no_complete`, `dispatch.no_monitor`
+  - `dispatch.open_policy`, `dispatch.codex_args`
+  - `hooks.before_cycle`, `hooks.after_cycle`, `hooks.timeout_sec`
+- markdown body is a shared execution-policy prompt prepended to delegated work-item prompts
+
+Operational commands:
+
+- `theworkshop workflow-check --project <path>` validates and prints the effective contract
+- `theworkshop serve --project <path> --once` runs one unattended cycle
+- `theworkshop serve --project <path> --detach` runs a background service loop
+
+Runner behavior:
+
+- reloads `WORKFLOW.md` at the start of each cycle
+- respects project agreement gating before dispatch
+- optionally refreshes orchestration artifacts before dispatch
+- dispatches runnable jobs from the on-disk project graph
+- emits runner telemetry to `logs/workflow-runner.jsonl`
+- writes live state to `tmp/workflow-runner.json`
+
+## Optional Adapters
+
+The portable/core workflow path does not require every integration shipped in the repo.
+
+Optional adapters include:
+- Codex telemetry / CodexBar spend
+- Gemini / OpenAI council planners
+- Apple Keychain credential path
+- imagegen skill bridge
+- GitHub mirroring
+
+Use `python3 scripts/doctor.py --profile codex` for the Codex-first path and
+`python3 scripts/doctor.py --profile portable` for the portable public baseline.
 
 ## Stage 1: Plan (Agree First)
 
@@ -88,6 +141,11 @@ Record the decision in the project-level `# Decisions` section and on the job fr
 If looping is planned as the main execution path, call:
 
 - `theworkshop loop --project <path> --work-item-id WI-... --mode ... [--max-loops ...] [--completion-promise ...]`
+
+Loop-specific learning policy:
+- loop attempts may stage lesson candidates and memory proposals only
+- loop attempts must not write durable memory files directly
+- curator promotion happens after terminal loop state, not after every attempt
 
 ### Step 7: Agreement Gate
 
@@ -190,17 +248,56 @@ Gate interaction:
 - `reward_eval.py` uses unresolved UAT issues to lower reward score and drive next-action hints.
 - `job_complete.py` blocks completion when unresolved UAT issues exist.
 
-### Orchestration + agent log flow (required when delegation is enabled)
+### Orchestration + native subagent flow (required when delegation is enabled)
 
 When the execution loop can run independent jobs in parallel:
 1. Run `orchestrate_plan.py` to produce `outputs/orchestration.json` with deterministic parallel groups and critical path.
-2. If 2 or more runnable independent jobs exist and `subagent_policy != off`, run `dispatch_orchestration.py` to execute runnable groups (respecting max parallel limits).
+2. If 2 or more runnable independent jobs exist, `subagent_policy != off`, and the current prompt explicitly authorizes subagents or parallel agent work, run `dispatch_orchestration.py` to turn runnable groups into native Codex subagent work (respecting max parallel limits).
 3. Delegation telemetry contract:
    - Canonical stream for all delegation paths: `logs/agents.jsonl`
    - Dispatch compatibility/diagnostic stream: `logs/subagent-dispatch.jsonl`
    - Dispatch execution summary: `outputs/orchestration-execution.json`
    - Event fields include additive routing metadata when available: `source`, `dispatch_run_id`, `group_index`
+   - Learning promotion counts should ride on canonical agent telemetry or loop summaries, not on ad hoc notes
 4. Rebuild dashboard artifacts so orchestration, dispatch, and sub-agent telemetry stays visible.
+
+Default execution split:
+- Keep the parent thread on planning, integration, acceptance checks, and final synthesis.
+- Use read-heavy subagents for exploration, dependency checks, review, test triage, and evidence gathering.
+- Use write-capable subagents only when ownership is disjoint and the work is bounded.
+- Subagents may read durable memory but must stage new memory/lesson findings instead of editing durable memory or canonical lesson files directly.
+- If two candidate jobs touch the same write scope, keep them serial or merge them into one owner.
+
+Preferred role mapping:
+- `explorer` or repo-specific explorer agents for mapping and fact-finding
+- `worker` or repo-specific worker agents for bounded execution
+- `default` or reviewer-style agents for QA, verification, and closeout synthesis
+
+Agent surface ownership:
+- shared global agent library: `~/.codex/agents/*.toml`
+- runtime agent definitions: `.codex/agents/*.toml`
+- runtime limits: `.codex/config.toml`
+- planning metadata and retry/budget defaults: `references/agents/*.json`
+- canonical job-local selector on jobs: `agent_profile`
+- derived runtime-preserving fields on jobs: `dispatch_budget`, `retry_limit`
+- historical plans should be normalized with `scripts/normalize_agent_profiles.py`
+
+Parent-thread lifecycle:
+1. Spawn only after the objective, scope, outputs, and ownership boundary are clear.
+2. Continue useful non-overlapping work locally instead of waiting by reflex.
+3. Wait when the next critical-path step depends on a subagent result.
+4. Integrate the result, update project state, and close the agent thread.
+
+### Direct native subagent path (allowed)
+
+Dispatch is the preferred control-plane path when orchestration artifacts already exist, but direct native subagent spawning from the parent thread is also allowed for one-off bounded tasks.
+
+When using the direct path:
+- still honor `subagent_policy`, max parallel limits, and write-scope separation
+- still honor staged learning rules: stage candidates first, curate/promote later
+- log spawned/progress/intermediate lifecycle events with `theworkshop agent-log`
+- end the run with `theworkshop agent-closeout` exactly once so dashboard telemetry stays truthful and staged learning is promoted once per agent run
+- summarize results back into the parent thread instead of copying raw intermediate logs
 
 ### Optional council planning mode (pre-agreement)
 
@@ -226,7 +323,7 @@ Triggers:
 - after each reward eval
 - at closeout
 
-At execution start (and after completion as needed), TheWorkshop must also **auto-open** the dashboard in a new browser window (best-effort, open-once per session) so the user can follow progress.
+At execution start, TheWorkshop must also **auto-open** the dashboard in a new browser window (best-effort, open-once per session) so the user can follow progress without repeated browser churn.
 - The HTML auto-refreshes every ~5s by default and can be paused in-page.
 - Optional live mode: run `dashboard_server.py` and open the served URL. The page upgrades to SSE (`/events`) when served over HTTP, with file polling fallback preserved.
 - Opt-out (tests/CI/headless): set `THEWORKSHOP_NO_OPEN=1`.
@@ -234,6 +331,9 @@ At execution start (and after completion as needed), TheWorkshop must also **aut
 - Persist monitor policy intentionally with `job_start.py --monitor-policy always|once|manual` (or `monitor_runtime.py start --policy ...`).
 - TheWorkshop also starts a best-effort background watcher (`dashboard_watch.py`) so the dashboard artifacts keep updating even when no explicit dashboard rebuild trigger fires (opt-out: `THEWORKSHOP_NO_MONITOR=1`).
 - Monitor runtime policy is project-scoped (`monitor_open_policy: always|once|manual`) and managed via `monitor_runtime.py start|stop|status`.
+- `monitor_runtime.py` is the lifecycle authority for dashboard open/watch/serve/cleanup; compatibility wrappers such as `dashboard_open.py` route through it.
+- Live dashboard reuse is intentional: if a healthy local server already exists, runtime state reuses that URL instead of creating a fresh browser target.
+- Project terminal closeout stops background dashboard/server runtime and prunes transient runtime artifacts while preserving canonical plans, logs, and dashboard outputs.
 
 ### Usage + spend telemetry (required)
 

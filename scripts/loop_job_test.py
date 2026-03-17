@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -95,6 +96,61 @@ def make_fake_codex_script(shim_dir: Path) -> None:
         "    if output_file:\n"
         "        Path(output_file).write_text(promise, encoding=\"utf-8\")\n"
         "\n"
+        "    work_item_id = os.environ.get(\"LOOP_SHIM_WORK_ITEM_ID\", \"\")\n"
+        "    attempt = 0\n"
+        "    if output_file:\n"
+        "        name = Path(output_file).name\n"
+        "        if name.startswith(\"attempt-\") and \".\" in name:\n"
+        "            token = name.split(\".\", 1)[0].replace(\"attempt-\", \"\")\n"
+        "            try:\n"
+        "                attempt = int(token)\n"
+        "            except Exception:\n"
+        "                attempt = 0\n"
+        "    now = \"2026-03-16T00:00:00Z\"\n"
+        "    if os.environ.get(\"LOOP_SHIM_WRITE_MEMORY\", \"\") == \"1\" and work_item_id:\n"
+        "        memory_dir = Path.cwd() / \".theworkshop\" / \"memory-proposals\"\n"
+        "        memory_dir.mkdir(parents=True, exist_ok=True)\n"
+        "        payload = {\n"
+        "            \"schema\": \"theworkshop.memory-proposal.v1\",\n"
+        "            \"id\": f\"MP-20990101-{attempt or 1:03d}\",\n"
+        "            \"status\": \"proposed\",\n"
+        "            \"captured_at\": now,\n"
+        "            \"project\": str(Path.cwd()),\n"
+        "            \"project_title\": Path.cwd().name,\n"
+        "            \"work_item_id\": work_item_id,\n"
+        "            \"loop_attempt\": int(attempt),\n"
+        "            \"source_agent\": \"theworkshop_loop_worker\",\n"
+        "            \"scope\": \"project\",\n"
+        "            \"kind\": \"workflow\",\n"
+        "            \"statement\": \"Promote loop memory only after staged proposal review.\",\n"
+        "            \"evidence\": [\"Loop test shim emitted a durable memory candidate.\"],\n"
+        "            \"confidence\": 0.8,\n"
+        "            \"promote_reason\": \"Loop runs should not mutate durable memory directly.\",\n"
+        "        }\n"
+        "        (memory_dir / f\"{payload['id']}.json\").write_text(__import__('json').dumps(payload, indent=2) + \"\\n\", encoding=\"utf-8\")\n"
+        "    if os.environ.get(\"LOOP_SHIM_WRITE_LESSON\", \"\") == \"1\" and work_item_id:\n"
+        "        lesson_dir = Path.cwd() / \".theworkshop\" / \"lessons-candidates\"\n"
+        "        lesson_dir.mkdir(parents=True, exist_ok=True)\n"
+        "        payload = {\n"
+        "            \"schema\": \"theworkshop.lesson-candidate.v1\",\n"
+        "            \"id\": f\"LC-20990101-{attempt or 1:03d}\",\n"
+        "            \"status\": \"proposed\",\n"
+        "            \"captured_at\": now,\n"
+        "            \"project\": str(Path.cwd()),\n"
+        "            \"project_title\": Path.cwd().name,\n"
+        "            \"work_item_id\": work_item_id,\n"
+        "            \"loop_attempt\": int(attempt),\n"
+        "            \"source_agent\": \"theworkshop_loop_worker\",\n"
+        "            \"tags\": [\"loop\", \"verification\"],\n"
+        "            \"linked\": [work_item_id],\n"
+        "            \"context\": \"Loop attempt surfaced a reusable verification heuristic.\",\n"
+        "            \"worked\": \"Staging the lesson before loop termination preserved it for curation.\",\n"
+        "            \"failed\": \"\",\n"
+        "            \"recommendation\": \"Curate staged loop lessons after the loop stops.\",\n"
+        "            \"confidence\": 0.8,\n"
+        "        }\n"
+        "        (lesson_dir / f\"{payload['id']}.json\").write_text(__import__('json').dumps(payload, indent=2) + \"\\n\", encoding=\"utf-8\")\n"
+        "\n"
         "    try:\n"
         "        code = int(os.environ.get(\"LOOP_SHIM_EXIT_CODE\", \"0\"))\n"
         "    except Exception:\n"
@@ -145,6 +201,8 @@ def bootstrap_project(base_dir: Path) -> tuple[Path, str]:
     set_frontmatter(
         job_dir / "plan.md",
         reward_target=0,
+        lesson_capture_required=False,
+        lesson_capture_exemption_reason="loop_job_test harness",
         loop_enabled=False,
         loop_mode="",
         loop_max_iterations=0,
@@ -200,13 +258,17 @@ def run_loop(
     exit_code: str = "0",
     walltime_sec: int | None = None,
     sleep_ms: str = "0",
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = {
         "LOOP_SHIM_PROMISE": promise,
         "LOOP_SHIM_EXIT_CODE": str(exit_code),
         "LOOP_SHIM_SLEEP_MS": str(sleep_ms),
+        "LOOP_SHIM_WORK_ITEM_ID": wi,
         "PATH": fake_codex_dir.as_posix() + os.pathsep + os.environ.get("PATH", ""),
     }
+    if extra_env:
+        env.update(extra_env)
 
     args = [
         sys.executable,
@@ -400,6 +462,52 @@ def scenario_malformed_promise(tmp_root: Path, fake_codex_dir: Path) -> None:
         pass
 
 
+def scenario_learning_candidates_curated(tmp_root: Path, fake_codex_dir: Path) -> None:
+    project_root, wi = bootstrap_project(tmp_root)
+    code = run_loop(
+        project_root=project_root,
+        fake_codex_dir=fake_codex_dir,
+        wi=wi,
+        mode="until_complete",
+        max_loops=2,
+        completion_promise=f"{wi}-DONE",
+        promise=f"<promise>{wi}-DONE</promise>",
+        extra_env={
+            "LOOP_SHIM_WRITE_MEMORY": "1",
+            "LOOP_SHIM_WRITE_LESSON": "1",
+            "CODEX_HOME": str(tmp_root / ".codex"),
+        },
+    )
+    if code.returncode != 0:
+        raise RuntimeError(f"Expected loop with learning capture to succeed, got {code.returncode}: {code.stdout}\n{code.stderr}")
+
+    summary = json.loads((project_root / ".theworkshop" / "loops" / wi / "summary.json").read_text(encoding="utf-8"))
+    if int(summary.get("memory_candidate_count") or 0) != 1:
+        raise RuntimeError(f"Expected one staged memory candidate in summary, got: {summary}")
+    if int(summary.get("lesson_candidate_count") or 0) != 1:
+        raise RuntimeError(f"Expected one staged lesson candidate in summary, got: {summary}")
+    if int(summary.get("promoted_memory_count") or 0) != 1:
+        raise RuntimeError(f"Expected one promoted memory entry, got: {summary}")
+    if int(summary.get("promoted_lesson_count") or 0) != 1:
+        raise RuntimeError(f"Expected one promoted lesson entry, got: {summary}")
+
+    attempt_report = json.loads((project_root / ".theworkshop" / "loops" / wi / "attempt-001.json").read_text(encoding="utf-8"))
+    if int(attempt_report.get("memory_candidate_count") or 0) != 1:
+        raise RuntimeError(f"Expected attempt report memory candidate count, got: {attempt_report}")
+    if int(attempt_report.get("lesson_candidate_count") or 0) != 1:
+        raise RuntimeError(f"Expected attempt report lesson candidate count, got: {attempt_report}")
+
+    memory_file = tmp_root / ".codex" / "memories" / "projects" / "TheWorkshopLoopTest.md"
+    if not memory_file.exists():
+        raise RuntimeError(f"Expected promoted loop memory file: {memory_file}")
+    if "Promote loop memory only after staged proposal review." not in memory_file.read_text(encoding="utf-8"):
+        raise RuntimeError("Expected promoted loop memory statement in project memory file")
+
+    lessons_md = project_root / "notes" / "lessons-learned.md"
+    if not lessons_md.exists():
+        raise RuntimeError("Expected lessons-learned.md after loop curation")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Integration-style tests for theworkshop loop execution.")
     parser.add_argument("--keep", action="store_true", help="Keep temp directory for inspection.")
@@ -425,6 +533,7 @@ def main() -> None:
         scenario_cancel_before_start(root, fake_codex_dir)
         scenario_timeout(root, fake_codex_dir)
         scenario_malformed_promise(root, fake_codex_dir)
+        scenario_learning_candidates_curated(root, fake_codex_dir)
     finally:
         if args.keep:
             print(f"KEPT: {root}")

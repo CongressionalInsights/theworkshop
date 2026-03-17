@@ -64,7 +64,11 @@ def main() -> None:
         ).stdout.strip()
 
         job_plan = next(project_root.glob("workstreams/WS-*/jobs/WI-*/plan.md"))
-        set_frontmatter(job_plan, orchestration_mode="review")
+        initial_doc = split_frontmatter(job_plan.read_text(encoding="utf-8", errors="ignore"))
+        if str(initial_doc.frontmatter.get("agent_profile") or "") != "theworkshop_worker":
+            raise RuntimeError("Expected new jobs to default to canonical theworkshop_worker agent_profile")
+
+        set_frontmatter(job_plan, agent_profile="", orchestration_mode="review")
 
         proc = run(
             py("resolve_agent_profile.py")
@@ -78,12 +82,18 @@ def main() -> None:
         )
         payload = json.loads(proc.stdout)
 
-        if payload.get("resolved_profile") != "reviewer":
-            raise RuntimeError(f"Expected reviewer profile, got: {payload}")
+        if payload.get("resolved_profile") != "theworkshop_reviewer":
+            raise RuntimeError(f"Expected canonical reviewer profile, got: {payload}")
+        if payload.get("resolved_runtime_agent") != "theworkshop_reviewer":
+            raise RuntimeError(f"Expected canonical runtime agent, got: {payload}")
+        if payload.get("fallback_agent_type") != "default":
+            raise RuntimeError(f"Expected default fallback agent type, got: {payload}")
 
         doc = split_frontmatter(job_plan.read_text(encoding="utf-8", errors="ignore"))
-        if str(doc.frontmatter.get("agent_profile") or "") != "reviewer":
+        if str(doc.frontmatter.get("agent_profile") or "") != "theworkshop_reviewer":
             raise RuntimeError("Expected agent_profile to be written to job frontmatter")
+        if "agent_type_hint" in doc.frontmatter:
+            raise RuntimeError("Expected no legacy agent_type_hint in new canonical plans")
 
         out_path = job_plan.parent / "artifacts" / "agent-profile.json"
         if not out_path.exists():
