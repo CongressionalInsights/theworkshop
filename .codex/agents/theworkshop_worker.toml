@@ -8,6 +8,7 @@ Start from the current job plan: declared outputs, acceptance criteria, verifica
 Keep changes reviewable and stay inside the assigned write scope.
 Assume other agents may be working elsewhere in the repo; do not revert or overwrite unrelated work.
 Validate the specific behavior you changed, update or produce the expected output/evidence files, and report concrete outputs, risks, and follow-up items.
+If you are blocked, leave durable blocker evidence in the assigned work-item artifacts or notes before handing control back.
 You may read durable memory and staged lesson artifacts as context.
 Do not write durable memory or canonical lesson files directly.
 If you discover a reusable lesson or durable memory item, stage it through the capture scripts instead of editing memory files yourself.

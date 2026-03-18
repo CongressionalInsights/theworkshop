@@ -42,6 +42,7 @@ def main() -> None:
     prompting = read_text(root, "references/prompting.md")
     workflow = read_text(root, "references/workflow.md")
     templates = read_text(root, "references/templates.md")
+    workflow_contract = read_text(root, "scripts/workflow_contract.py")
     explorer = read_text(root, ".codex/agents/theworkshop_explorer.toml")
     loop_worker = read_text(root, ".codex/agents/theworkshop_loop_worker.toml")
     worker = read_text(root, ".codex/agents/theworkshop_worker.toml")
@@ -111,6 +112,19 @@ def main() -> None:
     checks.append(check(s, 2.0, "skill-subagent-rules", "Top-level skill guidance should mention both bounded ownership and verification/gate anchoring for subagents."))
     score += s
     max_score += 2.0
+
+    s = 0.0
+    if contains_all(workflow_contract, ["if you are blocked", "durable blocker evidence"]):
+        s += 1.0
+    if contains_any(skill, ["durable blocker evidence", "blocker evidence"]):
+        s += 1.0
+    if contains_all(worker, ["if you are blocked", "durable blocker evidence"]):
+        s += 1.0
+    if contains_all(loop_worker, ["if you are blocked", "durable blocker evidence"]):
+        s += 1.0
+    checks.append(check(s, 4.0, "blocker-evidence-contract", "Workflow policy, top-level skill rules, and worker/loop-worker agents should leave durable blocker evidence instead of hidden status narration."))
+    score += s
+    max_score += 4.0
 
     summary = f"{score:.1f}/{max_score:.1f} contract points"
     sys_payload = {

@@ -229,6 +229,7 @@ When using native Codex subagents with TheWorkshop:
 - Shared/global helpers may live in `~/.codex/agents/`, but repo-local workshop agents own repo-specific behavior.
 - Prefer concise subagent summaries over raw logs in the parent thread to limit context pollution.
 - Only use recursive/nested delegation when the current project config allows it and the extra coordination cost is justified.
+- If delegated work is blocked, require durable blocker evidence in work-item artifacts or notes instead of relying on chat-only status.
 - Allow subagents to read durable memory as context, but do not let normal subagents edit durable memory or canonical lesson files directly.
 - Stage durable memory proposals and lesson candidates first; use curator agents or the parent thread to promote them later.
 - For manual or external delegation, use `agent-log` for spawned/progress/intermediate events and `agent-closeout` exactly once for the terminal event.
