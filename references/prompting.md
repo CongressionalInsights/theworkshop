@@ -100,6 +100,14 @@ When the job must not run without this alignment, set:
 
 Execution will fail at `job_start` if context is required but missing.
 
+## Manual/External Delegation Truthfulness
+
+When a plan or custom prompt uses manual/external delegation outside dispatch, spell out the telemetry contract up front:
+
+- use `theworkshop agent-log` for spawned/progress/intermediate lifecycle events
+- use `theworkshop agent-closeout` exactly once for the terminal event
+- keep status truth on disk; do not rely on chat-only summaries to represent delegated state
+
 ## Verify-work UAT loop (`theworkshop verify-work`)
 
 After implementation, run conversational UAT:

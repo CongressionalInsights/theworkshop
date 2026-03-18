@@ -16,6 +16,7 @@
   - delegated-role grounding to the current job plan and verification path
   - top-level subagent gate anchoring
   - durable blocker-evidence guidance for delegated and looped work
+  - truthful manual/external delegation telemetry and exactly-once closeout guidance
 - Updated OSS-facing docs and references (`README.md`, `SKILL.md`, `references/prompting.md`, `references/templates.md`, `references/workflow.md`, `RELEASE_CHECKLIST.md`) to reflect the new harness and the tighter delegated-work contract.
 
 ### Subagent Docs + Asset Refresh
