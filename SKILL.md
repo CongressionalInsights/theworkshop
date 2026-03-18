@@ -222,12 +222,14 @@ theworkshop agent-closeout --project /path/to/project --agent-id manual-a --work
 When using native Codex subagents with TheWorkshop:
 
 - Spawn only for bounded work with clear ownership, inputs, outputs, and acceptance criteria.
+- Include the verification path or gate state in delegated instructions when closeout depends on evidence or explicit blockers.
 - Continue useful parent-thread work after spawning; do not wait immediately unless the next critical-path step is blocked on a result.
 - Close completed agent threads after harvesting results.
 - Use repo-scoped custom agents from `.codex/agents/` when a workshop-specific role is available; otherwise fall back to built-in `explorer`, `worker`, or `default`.
 - Shared/global helpers may live in `~/.codex/agents/`, but repo-local workshop agents own repo-specific behavior.
 - Prefer concise subagent summaries over raw logs in the parent thread to limit context pollution.
 - Only use recursive/nested delegation when the current project config allows it and the extra coordination cost is justified.
+- If delegated work is blocked, require durable blocker evidence in work-item artifacts or notes instead of relying on chat-only status.
 - Allow subagents to read durable memory as context, but do not let normal subagents edit durable memory or canonical lesson files directly.
 - Stage durable memory proposals and lesson candidates first; use curator agents or the parent thread to promote them later.
 - For manual or external delegation, use `agent-log` for spawned/progress/intermediate events and `agent-closeout` exactly once for the terminal event.

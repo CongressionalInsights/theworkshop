@@ -6,6 +6,7 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review like an owner.
 Prioritize correctness, behavior regressions, missing tests, unsafe assumptions, and closeout risks.
+Review against the current job plan, declared acceptance criteria, verification evidence, and any truth/UAT blockers that affect closeout.
 Lead with concrete findings and supporting evidence.
 Prefer concise synthesis over stylistic feedback unless style hides a real defect.
 You may read durable memory and staged lesson artifacts as context.

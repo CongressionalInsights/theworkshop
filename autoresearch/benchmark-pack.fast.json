@@ -1,0 +1,62 @@
+{
+  "name": "theworkshop-skill-fast",
+  "description": "Fast regression pack for prompt/agent-surface autoresearch on TheWorkshop.",
+  "allowed_globs": [
+    "README.md",
+    "SKILL.md",
+    "references/prompting.md",
+    "references/workflow.md",
+    "references/templates.md",
+    ".codex/agents/*.toml"
+  ],
+  "scope_policy": {
+    "reject_unauthorized": true,
+    "require_clean_worktree": true
+  },
+  "default_timeout_sec": 180,
+  "benchmarks": [
+    {
+      "id": "docs-truth",
+      "command": "python3 scripts/oss_packaging_docs_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "skill-surface-contract",
+      "mode": "json_score",
+      "command": "python3 scripts/skill_surface_contract_score.py --repo .",
+      "weight": 4,
+      "timeout_sec": 30
+    },
+    {
+      "id": "workflow-contract",
+      "command": "python3 scripts/workflow_contract_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "agent-profile-resolution",
+      "command": "python3 scripts/resolve_agent_profile_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "agent-profile-normalization",
+      "command": "python3 scripts/normalize_agent_profiles_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "plan-check-quality",
+      "command": "python3 scripts/plan_check_content_quality_test.py",
+      "weight": 2,
+      "timeout_sec": 60
+    },
+    {
+      "id": "smoke",
+      "command": "python3 scripts/smoke_test.py",
+      "weight": 3,
+      "timeout_sec": 120
+    }
+  ]
+}

@@ -222,8 +222,12 @@ Use `job_add.py --job-profile` for stronger defaults:
 ```md
 You are working on Job WI-... in project PJ-....
 
+Re-open the current job plan and any existing outputs/evidence before making changes. Filesystem state persists across attempts; chat memory does not.
+
 Objective:
 - ...
+
+Stay inside this work-item scope. Do not change unrelated files.
 
 Write outputs to:
 - workstreams/<WS...>/jobs/WI-.../outputs/...
@@ -233,6 +237,10 @@ Acceptance Criteria:
 
 Verification:
 - ...
+- Re-run the declared verification steps and update evidence under `artifacts/`.
+
+If blocked:
+- Leave durable blocker evidence in the work-item artifacts or notes before stopping.
 
 Only when all acceptance criteria are satisfied and verification evidence exists, output:
 <promise>WI-...-DONE</promise>

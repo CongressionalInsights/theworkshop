@@ -270,8 +270,8 @@ Default execution split:
 
 Preferred role mapping:
 - `explorer` or repo-specific explorer agents for mapping and fact-finding
-- `worker` or repo-specific worker agents for bounded execution
-- `default` or reviewer-style agents for QA, verification, and closeout synthesis
+- `worker` or repo-specific worker agents for bounded execution against the current job plan, declared outputs, and verification path
+- `default` or reviewer-style agents for QA, verification, and closeout synthesis against acceptance criteria, evidence, and gate state
 
 Agent surface ownership:
 - shared global agent library: `~/.codex/agents/*.toml`
@@ -295,6 +295,7 @@ Dispatch is the preferred control-plane path when orchestration artifacts alread
 When using the direct path:
 - still honor `subagent_policy`, max parallel limits, and write-scope separation
 - still honor staged learning rules: stage candidates first, curate/promote later
+- require durable blocker evidence in artifacts/notes when delegated work cannot proceed
 - log spawned/progress/intermediate lifecycle events with `theworkshop agent-log`
 - end the run with `theworkshop agent-closeout` exactly once so dashboard telemetry stays truthful and staged learning is promoted once per agent run
 - summarize results back into the parent thread instead of copying raw intermediate logs

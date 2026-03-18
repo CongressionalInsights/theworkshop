@@ -46,6 +46,17 @@ It is designed to open locally after install and covers:
 
 ![Subagent Explainer Artwork](docs/assets/subagents-explainer-preview.png)
 
+## Autoresearch-Style Skill Tuning
+
+The repo also includes an optional outer-loop harness in [`autoresearch/`](autoresearch/README.md) for refining the **skill surface** without opening up the whole repository to autonomous mutation.
+
+- control file: `autoresearch/program.md`
+- benchmark packs: `autoresearch/benchmark-pack.fast.json`, `autoresearch/benchmark-pack.full.json`
+- evaluator: `python3 scripts/skill_autoresearch_eval.py`
+- scored contract benchmark: `python3 scripts/skill_surface_contract_score.py --repo .`
+
+The default writable surface is limited to operator-facing docs and repo-local agent definitions, and results can be logged to the ignored `state/autoresearch/results.tsv` path. Benchmark-maintenance commits should be kept separate from scored skill-surface experiments, because the scope guard intentionally rejects changes outside that writable surface.
+
 ## What It Is
 
 - A **Codex/Claude Code skill**, not a standalone app

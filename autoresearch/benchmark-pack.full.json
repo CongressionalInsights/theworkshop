@@ -1,0 +1,86 @@
+{
+  "name": "theworkshop-skill-full",
+  "description": "Broader regression pack for validating promising TheWorkshop skill-surface experiments.",
+  "allowed_globs": [
+    "README.md",
+    "SKILL.md",
+    "references/prompting.md",
+    "references/workflow.md",
+    "references/templates.md",
+    ".codex/agents/*.toml"
+  ],
+  "scope_policy": {
+    "reject_unauthorized": true,
+    "require_clean_worktree": true
+  },
+  "default_timeout_sec": 240,
+  "benchmarks": [
+    {
+      "id": "docs-truth",
+      "command": "python3 scripts/oss_packaging_docs_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "skill-surface-contract",
+      "mode": "json_score",
+      "command": "python3 scripts/skill_surface_contract_score.py --repo .",
+      "weight": 5,
+      "timeout_sec": 30
+    },
+    {
+      "id": "workflow-contract",
+      "command": "python3 scripts/workflow_contract_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "agent-profile-resolution",
+      "command": "python3 scripts/resolve_agent_profile_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "agent-profile-normalization",
+      "command": "python3 scripts/normalize_agent_profiles_test.py",
+      "weight": 1,
+      "timeout_sec": 30
+    },
+    {
+      "id": "plan-check-quality",
+      "command": "python3 scripts/plan_check_content_quality_test.py",
+      "weight": 2,
+      "timeout_sec": 60
+    },
+    {
+      "id": "dispatch-orchestration",
+      "command": "python3 scripts/dispatch_orchestration_test.py",
+      "weight": 2,
+      "timeout_sec": 60
+    },
+    {
+      "id": "workflow-runner",
+      "command": "python3 scripts/workflow_runner_test.py",
+      "weight": 2,
+      "timeout_sec": 60
+    },
+    {
+      "id": "loop-job",
+      "command": "python3 scripts/loop_job_test.py",
+      "weight": 3,
+      "timeout_sec": 120
+    },
+    {
+      "id": "smoke",
+      "command": "python3 scripts/smoke_test.py",
+      "weight": 3,
+      "timeout_sec": 120
+    },
+    {
+      "id": "sample-scenario",
+      "command": "python3 scripts/sample_scenario_test.py",
+      "weight": 3,
+      "timeout_sec": 180
+    }
+  ]
+}
