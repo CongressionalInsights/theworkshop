@@ -262,6 +262,17 @@ If the mode is `until_complete` or `promise_or_max`, ensure the objective/verifi
 If `loop_enabled` is false, execute with a single-shot command path (`job_start` + `job_complete`).
 ```
 
+## Manual/External Delegation Note
+
+Use this note when a plan or prompt relies on manual/external delegation outside dispatch:
+
+```md
+Delegation telemetry:
+- Use `theworkshop agent-log` for spawned/progress/intermediate lifecycle events.
+- Use `theworkshop agent-closeout` exactly once for the terminal event.
+- Keep delegated status truthful in project artifacts/logs instead of relying on chat-only updates.
+```
+
 ## Imagegen Job Add-On (Template Snippet)
 
 Use this snippet when a job is responsible for generating image assets:
