@@ -273,6 +273,17 @@ Delegation telemetry:
 - Keep delegated status truthful in project artifacts/logs instead of relying on chat-only updates.
 ```
 
+## Staged Learning Note
+
+Use this note when delegated or looped work may discover reusable lessons or durable workflow guidance:
+
+```md
+Learning capture:
+- Stage memory proposals and lesson candidates first.
+- Do not edit durable memory files or canonical lesson artifacts directly.
+- Let curator agents or the parent thread promote staged findings later.
+```
+
 ## Imagegen Job Add-On (Template Snippet)
 
 Use this snippet when a job is responsible for generating image assets:
