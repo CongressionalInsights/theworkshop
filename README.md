@@ -57,6 +57,13 @@ The repo also includes an optional outer-loop harness in [`autoresearch/`](autor
 
 The default writable surface is limited to operator-facing docs and repo-local agent definitions, and results can be logged to the ignored `state/autoresearch/results.tsv` path. Benchmark-maintenance commits should be kept separate from scored skill-surface experiments, because the scope guard intentionally rejects changes outside that writable surface.
 
+Current scored seams include:
+- delegated-role grounding to the current job plan and verification path
+- durable blocker evidence instead of hidden status narration
+- truthful manual/external delegation telemetry and exactly-once closeout
+- staged learning with curator-only durable promotion
+- context-lock propagation so delegated and looped work reopen `context_ref`, honor locked decisions, and keep deferred ideas out of scope
+
 ## What It Is
 
 - A **Codex/Claude Code skill**, not a standalone app
@@ -129,6 +136,11 @@ A job can only transition to `done` when all gates pass:
 2. Dependency/freshness gate (inputs are current)
 3. TruthGate (verification of correctness)
 4. Reward gate (meets `reward_target`)
+
+Execution-context discipline:
+- ambiguous work should be locked with `theworkshop discuss` before execution
+- jobs that require that lock should carry `context_required: true` and `context_ref`
+- delegated and looped work should reopen the context file, treat locked decisions as binding, and keep deferred ideas out of scope until the lock is refreshed
 
 Execution quality defaults:
 - `job_start.py` auto-applies ranked lessons into `# Relevant Lessons Learned` (override: `--no-apply-lessons`).
