@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Nothing yet.
+
+## 2026-03-17 (`v0.2.3`)
+
 ### Autoresearch Harness + Skill-Surface Scoring
 - Added an optional repo-local outer-loop tuning harness under `autoresearch/` for improving the OSS skill surface without opening the whole repository to autonomous mutation.
 - Added:
@@ -18,7 +22,7 @@
   - durable blocker-evidence guidance for delegated and looped work
   - truthful manual/external delegation telemetry and exactly-once closeout guidance
   - staged learning / curator-only durable writes
-  - context-lock propagation so delegated and looped work reopens `context_ref`, honors locked decisions, and treats deferred ideas as out of scope
+  - context-lock propagation so delegated and looped work reopen `context_ref`, honor locked decisions, and treat deferred ideas as out of scope
 - Updated OSS-facing docs and references (`README.md`, `SKILL.md`, `references/prompting.md`, `references/templates.md`, `references/workflow.md`, `RELEASE_CHECKLIST.md`) to reflect the new harness and the tighter delegated-work contract.
 
 ### Subagent Docs + Asset Refresh

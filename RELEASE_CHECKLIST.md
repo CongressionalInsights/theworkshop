@@ -1,4 +1,4 @@
-# Release Checklist (`v0.2.1` Baseline)
+# Release Checklist (`v0.2.3` Baseline)
 
 ## 1. Packaging Hygiene (Hardening PR)
 
@@ -78,19 +78,19 @@ python3 scripts/smoke_test.py
 python3 scripts/sample_scenario_test.py
 ```
 
-## 4. Release Packaging (`v0.2.1`)
+## 4. Release Packaging (`v0.2.3`)
 
-- [ ] Add/update `releases/v0.2.1.md` with final release notes
-- [ ] Update `CHANGELOG.md` with consolidated `v0.2.1` release section
+- [ ] Add/update `releases/v0.2.3.md` with final release notes
+- [ ] Update `CHANGELOG.md` with consolidated `v0.2.3` release section
 - [ ] Merge feature-pack PR to `main`
 - [ ] Tag and publish release:
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
-- [ ] Verify release page body matches `releases/v0.2.1.md`
+- [ ] Verify release page body matches `releases/v0.2.3.md`
 
 ## 5. GitHub Metadata + Triage
 
