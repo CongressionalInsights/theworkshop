@@ -41,6 +41,12 @@ The evaluator:
 - computes a single `0-100` score
 - optionally appends run summaries to `state/autoresearch/results.tsv`
 
+Important operating rule:
+
+- keep benchmark-maintenance commits separate from scored skill-surface experiments
+- if you change the evaluator or benchmark packs, do that in its own commit/round first
+- scored experiment commits should only touch the writable skill surface, or the scope guard will reject them
+
 ## Control File
 
 Use [`program.md`](./program.md) as the human-authored control file for an external autonomous loop.

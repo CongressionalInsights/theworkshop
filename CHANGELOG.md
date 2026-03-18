@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Autoresearch Harness + Skill-Surface Scoring
+- Added an optional repo-local outer-loop tuning harness under `autoresearch/` for improving the OSS skill surface without opening the whole repository to autonomous mutation.
+- Added:
+  - `scripts/skill_autoresearch_eval.py`
+  - `scripts/skill_surface_contract_score.py`
+  - `scripts/skill_autoresearch_eval_test.py`
+  - `autoresearch/program.md`
+  - `autoresearch/benchmark-pack.fast.json`
+  - `autoresearch/benchmark-pack.full.json`
+- Added partial-credit benchmark support so score regressions and contract gaps can be measured without collapsing everything to binary pass/fail.
+- Added scored contract checks for:
+  - delegated-role grounding to the current job plan and verification path
+  - top-level subagent gate anchoring
+  - durable blocker-evidence guidance for delegated and looped work
+- Updated OSS-facing docs and references (`README.md`, `SKILL.md`, `references/prompting.md`, `references/templates.md`, `references/workflow.md`, `RELEASE_CHECKLIST.md`) to reflect the new harness and the tighter delegated-work contract.
+
 ### Subagent Docs + Asset Refresh
 - Added a public self-contained explainer page at `docs/subagents.html` covering:
   - the broad Codex subagent model,

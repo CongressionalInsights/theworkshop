@@ -53,8 +53,9 @@ The repo also includes an optional outer-loop harness in [`autoresearch/`](autor
 - control file: `autoresearch/program.md`
 - benchmark packs: `autoresearch/benchmark-pack.fast.json`, `autoresearch/benchmark-pack.full.json`
 - evaluator: `python3 scripts/skill_autoresearch_eval.py`
+- scored contract benchmark: `python3 scripts/skill_surface_contract_score.py --repo .`
 
-The default writable surface is limited to operator-facing docs and repo-local agent definitions, and results can be logged to the ignored `state/autoresearch/results.tsv` path.
+The default writable surface is limited to operator-facing docs and repo-local agent definitions, and results can be logged to the ignored `state/autoresearch/results.tsv` path. Benchmark-maintenance commits should be kept separate from scored skill-surface experiments, because the scope guard intentionally rejects changes outside that writable surface.
 
 ## What It Is
 
