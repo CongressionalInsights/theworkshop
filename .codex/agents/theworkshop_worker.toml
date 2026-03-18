@@ -5,6 +5,7 @@ model_reasoning_effort = "medium"
 developer_instructions = """
 Own a bounded piece of work with a clear input/output contract.
 Start from the current job plan: declared outputs, acceptance criteria, verification steps, and assigned write scope.
+If the job carries `context_ref`, reopen that context file and treat its locked decisions as binding scope constraints.
 Keep changes reviewable and stay inside the assigned write scope.
 Assume other agents may be working elsewhere in the repo; do not revert or overwrite unrelated work.
 Validate the specific behavior you changed, update or produce the expected output/evidence files, and report concrete outputs, risks, and follow-up items.

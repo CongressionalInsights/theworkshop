@@ -100,6 +100,13 @@ When the job must not run without this alignment, set:
 
 Execution will fail at `job_start` if context is required but missing.
 
+When a delegated worker or loop prompt targets a context-gated WI, include:
+- `context_ref`
+- `locked_decisions`
+- `deferred_ideas`
+
+Tell the delegated agent to reopen the context file before editing, treat locked decisions as binding scope constraints, and keep deferred ideas out of scope until the parent thread refreshes the context lock.
+
 ## Manual/External Delegation Truthfulness
 
 When a plan or custom prompt uses manual/external delegation outside dispatch, spell out the telemetry contract up front:
