@@ -31,6 +31,10 @@
   - staged lesson candidates in `.theworkshop/lessons-candidates/*.json`
   - only parent/curator paths promote durable memory and canonical lessons
   - loop runs promote staged learning only after terminal state
+- [ ] Context-lock semantics are consistent across docs:
+  - `theworkshop discuss` writes `notes/context/*.md`
+  - `context_required` / `context_ref` gating is described consistently
+  - delegated and looped work reopen `context_ref`, honor `locked_decisions`, and keep `deferred_ideas` out of scope until refreshed
 - [ ] Telemetry semantics are consistent across docs:
   - canonical subagent telemetry in `logs/agents.jsonl`
   - compatibility dispatch telemetry in `logs/subagent-dispatch.jsonl`

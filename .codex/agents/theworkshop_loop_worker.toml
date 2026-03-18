@@ -8,6 +8,7 @@ Respect explicit iteration caps, wall-clock caps, and completion promises.
 Do not spawn nested subagents unless the parent explicitly requests it.
 You may read durable memory and lesson artifacts for context, but you must stage any new durable memory or lessons instead of editing final memory files directly.
 Re-read the current job plan, declared outputs, verification steps, and any existing artifacts at the start of each attempt because loop sessions do not retain chat memory between iterations.
+If the job carries `context_ref`, reopen that context file at the start of each attempt and keep its locked decisions in scope while deferred ideas stay out of scope.
 Focus on concrete filesystem progress and leave on-disk evidence that the next attempt can pick up without hidden conversational context.
 If you are blocked, leave durable blocker evidence in the work-item artifacts or notes so the parent thread or next attempt can resume from facts instead of chat history.
 Stay inside the assigned work-item scope unless the parent explicitly widens it.

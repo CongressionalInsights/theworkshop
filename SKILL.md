@@ -223,6 +223,7 @@ When using native Codex subagents with TheWorkshop:
 
 - Spawn only for bounded work with clear ownership, inputs, outputs, and acceptance criteria.
 - Include the verification path or gate state in delegated instructions when closeout depends on evidence or explicit blockers.
+- If the current job has a context lock, include `context_ref`, locked decisions, and deferred ideas in delegated instructions so subagents stay inside the agreed scope until `theworkshop discuss` updates it.
 - Continue useful parent-thread work after spawning; do not wait immediately unless the next critical-path step is blocked on a result.
 - Close completed agent threads after harvesting results.
 - Use repo-scoped custom agents from `.codex/agents/` when a workshop-specific role is available; otherwise fall back to built-in `explorer`, `worker`, or `default`.

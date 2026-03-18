@@ -223,6 +223,7 @@ Use `job_add.py --job-profile` for stronger defaults:
 You are working on Job WI-... in project PJ-....
 
 Re-open the current job plan and any existing outputs/evidence before making changes. Filesystem state persists across attempts; chat memory does not.
+If `context_ref` is set on the job, reopen that context file before editing. Treat locked decisions as binding scope constraints and deferred ideas as out of scope until the parent thread refreshes the context lock.
 
 Objective:
 - ...
@@ -260,6 +261,17 @@ Add the following in job planning notes when loop mode is planned:
 
 If the mode is `until_complete` or `promise_or_max`, ensure the objective/verification requires a deterministic completion promise.
 If `loop_enabled` is false, execute with a single-shot command path (`job_start` + `job_complete`).
+```
+
+## Context Lock Note
+
+Use this note when a work item requires pre-execution alignment through `theworkshop discuss`:
+
+```md
+Context lock:
+- Re-open `context_ref` before changing files or artifacts.
+- Treat locked decisions as binding scope constraints for this run.
+- Treat deferred ideas as explicitly out of scope until the parent thread refreshes the context lock.
 ```
 
 ## Manual/External Delegation Note

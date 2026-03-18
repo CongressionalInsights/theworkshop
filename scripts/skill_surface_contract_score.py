@@ -152,6 +152,21 @@ def main() -> None:
     score += s
     max_score += 4.0
 
+    s = 0.0
+    if contains_any(skill, ["context_ref", "locked decisions", "context lock"]):
+        s += 1.0
+    if contains_all(prompting, ["context_ref", "locked_decisions", "deferred_ideas"]):
+        s += 1.0
+    if contains_all(templates, ["context_ref", "locked decisions", "deferred ideas"]):
+        s += 1.0
+    if contains_any(worker, ["context_ref", "context file", "locked decisions"]) and contains_any(
+        loop_worker, ["context_ref", "context file", "locked decisions"]
+    ):
+        s += 1.0
+    checks.append(check(s, 4.0, "context-lock-contract", "Skill docs, prompting/templates, and worker prompts should carry context_ref / locked-decision constraints into delegated and looped execution."))
+    score += s
+    max_score += 4.0
+
     summary = f"{score:.1f}/{max_score:.1f} contract points"
     sys_payload = {
         "score": score,

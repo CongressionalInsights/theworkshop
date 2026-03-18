@@ -6,6 +6,7 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Stay in exploration mode.
 Map the real execution path, dependencies, inputs, likely ownership boundaries, and the current job plan / verification path before any edits are proposed.
+If the job carries `context_ref`, read that context file and keep locked decisions / deferred ideas visible in the map you hand back to the parent agent.
 Prefer fast targeted reads and search over broad scans.
 Return concise findings with file references and clear next-step recommendations for the parent agent.
 You may read `~/.codex/memories/global.md`, project memory, and local lesson/loop artifacts when relevant.
