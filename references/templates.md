@@ -239,6 +239,9 @@ Verification:
 - ...
 - Re-run the declared verification steps and update evidence under `artifacts/`.
 
+If blocked:
+- Leave durable blocker evidence in the work-item artifacts or notes before stopping.
+
 Only when all acceptance criteria are satisfied and verification evidence exists, output:
 <promise>WI-...-DONE</promise>
 ```

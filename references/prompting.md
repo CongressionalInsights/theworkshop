@@ -82,6 +82,7 @@ Then run the execution command chosen for this WI:
 When a looped WI uses a custom prompt, make sure it tells each attempt to:
 - re-open the current job plan and existing outputs/evidence before making changes
 - produce filesystem-visible progress, not just narrative status
+- leave durable blocker evidence in artifacts/notes if the attempt cannot proceed
 - emit the completion promise only after acceptance criteria and verification evidence are satisfied
 
 ## Intent lock before execution (`theworkshop discuss`)

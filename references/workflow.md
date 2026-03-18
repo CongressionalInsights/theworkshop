@@ -295,6 +295,7 @@ Dispatch is the preferred control-plane path when orchestration artifacts alread
 When using the direct path:
 - still honor `subagent_policy`, max parallel limits, and write-scope separation
 - still honor staged learning rules: stage candidates first, curate/promote later
+- require durable blocker evidence in artifacts/notes when delegated work cannot proceed
 - log spawned/progress/intermediate lifecycle events with `theworkshop agent-log`
 - end the run with `theworkshop agent-closeout` exactly once so dashboard telemetry stays truthful and staged learning is promoted once per agent run
 - summarize results back into the parent thread instead of copying raw intermediate logs
