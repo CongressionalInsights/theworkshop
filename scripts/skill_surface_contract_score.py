@@ -126,6 +126,19 @@ def main() -> None:
     score += s
     max_score += 4.0
 
+    s = 0.0
+    if contains_all(skill, ["agent-log", "agent-closeout", "exactly once"]):
+        s += 1.0
+    if contains_all(workflow, ["agent-log", "agent-closeout", "exactly once"]):
+        s += 1.0
+    if contains_all(prompting, ["manual/external delegation", "agent-log", "agent-closeout"]):
+        s += 1.0
+    if contains_all(templates, ["agent-log", "agent-closeout", "manual/external"]):
+        s += 1.0
+    checks.append(check(s, 4.0, "delegation-telemetry-contract", "Skill docs, workflow docs, prompting guidance, and templates should preserve truthful manual/external delegation telemetry and exactly-once closeout."))
+    score += s
+    max_score += 4.0
+
     summary = f"{score:.1f}/{max_score:.1f} contract points"
     sys_payload = {
         "score": score,
