@@ -139,6 +139,19 @@ def main() -> None:
     score += s
     max_score += 4.0
 
+    s = 0.0
+    if contains_all(skill, ["stage durable memory proposals", "lesson candidates", "curator agents"]):
+        s += 1.0
+    if contains_all(workflow, ["stage new memory/lesson findings", "editing durable memory or canonical lesson files directly"]):
+        s += 1.0
+    if contains_all(prompting, ["stage", "durable memory", "lesson", "instead of editing"]) or contains_all(prompting, ["memory proposals", "lesson candidates"]):
+        s += 1.0
+    if contains_all(templates, ["memory proposals", "lesson candidates"]) or contains_all(templates, ["stage", "durable memory", "canonical lesson"]):
+        s += 1.0
+    checks.append(check(s, 4.0, "staged-learning-contract", "Skill docs, workflow docs, prompting guidance, and templates should reinforce staged learning and curator-only durable writes."))
+    score += s
+    max_score += 4.0
+
     summary = f"{score:.1f}/{max_score:.1f} contract points"
     sys_payload = {
         "score": score,

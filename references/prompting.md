@@ -108,6 +108,12 @@ When a plan or custom prompt uses manual/external delegation outside dispatch, s
 - use `theworkshop agent-closeout` exactly once for the terminal event
 - keep status truth on disk; do not rely on chat-only summaries to represent delegated state
 
+When delegated work discovers reusable lessons or durable memory:
+
+- stage memory proposals and lesson candidates first
+- do not edit durable memory files or canonical lesson artifacts directly
+- leave curator promotion to the parent thread or curator agents
+
 ## Verify-work UAT loop (`theworkshop verify-work`)
 
 After implementation, run conversational UAT:
