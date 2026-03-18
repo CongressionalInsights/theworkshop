@@ -17,6 +17,8 @@
   - top-level subagent gate anchoring
   - durable blocker-evidence guidance for delegated and looped work
   - truthful manual/external delegation telemetry and exactly-once closeout guidance
+  - staged learning / curator-only durable writes
+  - context-lock propagation so delegated and looped work reopens `context_ref`, honors locked decisions, and treats deferred ideas as out of scope
 - Updated OSS-facing docs and references (`README.md`, `SKILL.md`, `references/prompting.md`, `references/templates.md`, `references/workflow.md`, `RELEASE_CHECKLIST.md`) to reflect the new harness and the tighter delegated-work contract.
 
 ### Subagent Docs + Asset Refresh
